@@ -1,0 +1,131 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Eye, Download } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { formatCFA, formatDate } from '@/core/utils/formatters';
+
+interface CustomerRow {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email?: string;
+  clientType: 'PARTICULIER' | 'PROFESSIONNEL';
+  companyName?: string;
+  totalOrders: number;
+  totalRevenue: number;
+  lastOrderDate?: string;
+  createdAt: string;
+}
+
+const MOCK: CustomerRow[] = [
+  { id: '1', firstName: 'Kouassi', lastName: 'Jean', phone: '+225 07 12 34 56', email: 'kouassi@email.com', clientType: 'PARTICULIER', totalOrders: 12, totalRevenue: 8500000, lastOrderDate: '2026-03-05', createdAt: '2025-06-15' },
+  { id: '2', firstName: 'Société', lastName: 'ABC SARL', phone: '+225 05 98 76 54', email: 'contact@abc-sarl.ci', clientType: 'PROFESSIONNEL', companyName: 'ABC SARL', totalOrders: 45, totalRevenue: 125000000, lastOrderDate: '2026-03-04', createdAt: '2025-01-10' },
+  { id: '3', firstName: 'Diallo', lastName: 'Mamadou', phone: '+225 01 23 45 67', clientType: 'PARTICULIER', totalOrders: 3, totalRevenue: 1250000, lastOrderDate: '2026-03-01', createdAt: '2025-11-20' },
+  { id: '4', firstName: 'Construction', lastName: 'Moderne SA', phone: '+225 27 22 11 33', email: 'cmd@cm-sa.ci', clientType: 'PROFESSIONNEL', companyName: 'Construction Moderne SA', totalOrders: 78, totalRevenue: 350000000, lastOrderDate: '2026-03-02', createdAt: '2024-08-05' },
+  { id: '5', firstName: 'Traoré', lastName: 'Fatoumata', phone: '+225 07 65 43 21', email: 'fatou.t@email.com', clientType: 'PARTICULIER', totalOrders: 7, totalRevenue: 4200000, lastOrderDate: '2026-02-28', createdAt: '2025-09-01' },
+  { id: '6', firstName: 'Yao', lastName: 'Aya', phone: '+225 05 11 22 33', clientType: 'PARTICULIER', totalOrders: 2, totalRevenue: 980000, lastOrderDate: '2026-03-05', createdAt: '2026-01-15' },
+  { id: '7', firstName: 'BTP', lastName: 'Plus SARL', phone: '+225 27 22 44 55', email: 'info@btpplus.ci', clientType: 'PROFESSIONNEL', companyName: 'BTP Plus SARL', totalOrders: 22, totalRevenue: 85000000, lastOrderDate: '2026-03-03', createdAt: '2025-03-20' },
+];
+
+export default function CustomersListPage() {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'PARTICULIER' | 'PROFESSIONNEL' | ''>('');
+
+  const filtered = MOCK.filter((c) => {
+    if (typeFilter && c.clientType !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const name = `${c.firstName} ${c.lastName}`.toLowerCase();
+      return name.includes(q) || c.phone.includes(q) || c.email?.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  return (
+    <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
+          <p className="text-sm text-gray-500 mt-1">{filtered.length} client(s)</p>
+        </div>
+        <button className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <Download size={16} /> Exporter
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative flex-1 max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher par nom, téléphone ou email..."
+            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#FF8C00] outline-none"
+          />
+        </div>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+        >
+          <option value="">Tous les types</option>
+          <option value="PARTICULIER">Particulier</option>
+          <option value="PROFESSIONNEL">Professionnel</option>
+        </select>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Client</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Téléphone</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Email</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Type</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Commandes</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">CA Total</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Dernière cmd</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => (
+                <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-medium text-gray-900">{c.firstName} {c.lastName}</p>
+                    {c.companyName && <p className="text-xs text-gray-400">{c.companyName}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{c.phone}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{c.email || '—'}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={cn(
+                      'text-[10px] font-bold px-2 py-0.5 rounded',
+                      c.clientType === 'PROFESSIONNEL' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600',
+                    )}>
+                      {c.clientType === 'PROFESSIONNEL' ? 'PRO' : 'PART'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">{c.totalOrders}</td>
+                  <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">{formatCFA(c.totalRevenue)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{c.lastOrderDate ? formatDate(c.lastOrderDate) : '—'}</td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={() => navigate(`/admin/customers/${c.id}`)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#FF8C00] bg-orange-50 rounded-lg hover:bg-orange-100"
+                    >
+                      <Eye size={14} /> Voir
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
