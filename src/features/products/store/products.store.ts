@@ -1,8 +1,25 @@
 import { create } from 'zustand';
-import api from '../../../core/api';
-import type { Product, ProductCategory, ProductStatus, PaginatedResponse } from '../../../core/types';
+import type { ProductCategory, ProductStatus, PaginatedResponse } from '../../../core/types';
+import ProductService from '../services/ProductService';
 
-export interface ProductWithStock extends Product {
+export interface ProductWithStock {
+  id: string;
+  reference: string;
+  name: string;
+  category: ProductCategory;
+  description?: string;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+  weightKg?: number;
+  unitPrice: number;
+  bulkPrice?: number;
+  bulkMinQuantity?: number;
+  status: ProductStatus;
+  usages: string[];
+  images: { id: string; url: string; isPrimary: boolean; sortOrder: number }[];
+  createdAt: string;
+  updatedAt: string;
   stock?: {
     available: number;
     level: 'NORMAL' | 'ALERT' | 'CRITICAL';
@@ -104,20 +121,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const { filters } = get();
-      const params = new URLSearchParams();
-
-      if (filters.search) params.append('search', filters.search);
-      if (filters.category) params.append('category', filters.category);
-      if (filters.status) params.append('status', filters.status);
-      params.append('page', String(filters.page));
-      params.append('pageSize', String(filters.pageSize));
-      params.append('sortBy', filters.sortBy);
-      params.append('sortOrder', filters.sortOrder);
-
-      const { data } = await api.get<PaginatedResponse<ProductWithStock>>(
-        `/products?${params.toString()}`
-      );
-
+      const data: PaginatedResponse<ProductWithStock> = await ProductService.getProducts(filters);
       set({
         products: data.data,
         total: data.total,
@@ -133,7 +137,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   fetchProductById: async (id) => {
     set({ loading: true, error: null });
     try {
-      const { data } = await api.get<ProductWithStock>(`/products/${id}`);
+      const data = await ProductService.getProductById(id);
       set({ selectedProduct: data, loading: false });
       return data;
     } catch (err: unknown) {
@@ -145,7 +149,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
   fetchStats: async () => {
     try {
-      const { data } = await api.get<ProductStats>('/products/stats');
+      const data = await ProductService.getProductStats();
       set({ stats: data });
     } catch (err: unknown) {
       console.error('Erreur chargement stats produits:', err);
@@ -155,7 +159,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   createProduct: async (payload) => {
     set({ loading: true, error: null });
     try {
-      const { data } = await api.post<ProductWithStock>('/products', payload);
+      const data = await ProductService.createProduct(payload);
       set((state) => ({
         products: [data, ...state.products],
         loading: false,
@@ -171,7 +175,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   updateProduct: async (id, payload) => {
     set({ loading: true, error: null });
     try {
-      const { data } = await api.put<ProductWithStock>(`/products/${id}`, payload);
+      const data = await ProductService.updateProduct(id, payload);
       set((state) => ({
         products: state.products.map((p) => (p.id === id ? data : p)),
         selectedProduct: state.selectedProduct?.id === id ? data : state.selectedProduct,
@@ -188,7 +192,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   updateProductStatus: async (id, status) => {
     set({ loading: true, error: null });
     try {
-      const { data } = await api.patch<ProductWithStock>(`/products/${id}/status?status=${status}`);
+      const data = await ProductService.updateProductStatus(id, status);
       set((state) => ({
         products: state.products.map((p) => (p.id === id ? data : p)),
         selectedProduct: state.selectedProduct?.id === id ? data : state.selectedProduct,
@@ -204,7 +208,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   deleteProduct: async (id) => {
     set({ loading: true, error: null });
     try {
-      await api.delete(`/products/${id}`);
+      await ProductService.deleteProduct(id);
       set((state) => ({
         products: state.products.filter((p) => p.id !== id),
         selectedProduct: state.selectedProduct?.id === id ? null : state.selectedProduct,
@@ -219,8 +223,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
   addProductImage: async (productId, url, isPrimary = false) => {
     try {
-      await api.post(`/products/${productId}/images`, { url, isPrimary });
-      // Refresh product data
+      await ProductService.addProductImage(productId, url, isPrimary);
       await get().fetchProductById(productId);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erreur lors de l'ajout de l'image";
@@ -231,7 +234,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
   removeProductImage: async (imageId) => {
     try {
-      await api.delete(`/products/images/${imageId}`);
+      await ProductService.removeProductImage(imageId);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erreur lors de la suppression de l'image";
       set({ error: message });
