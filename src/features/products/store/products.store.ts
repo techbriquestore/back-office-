@@ -28,7 +28,7 @@ export interface ProductStats {
 }
 
 export interface CreateProductPayload {
-  reference: string;
+  reference?: string;
   name: string;
   category: ProductCategory;
   description?: string;

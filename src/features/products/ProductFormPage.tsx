@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Upload, X, Star } from 'lucide-react';
+import { ArrowLeft, Save, Upload, X, Star, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PRODUCT_CATEGORY_LABELS } from '@/core/types';
 import type { ProductCategory, ProductStatus } from '@/core/types';
+import { useProductsStore } from './store/products.store';
 
 type FormTab = 'general' | 'specs' | 'pricing' | 'stock' | 'images' | 'status';
 
@@ -66,10 +67,42 @@ export default function ProductFormPage() {
   const navigate = useNavigate();
   const params = useParams();
   const isEdit = !!params.id;
+  const productId = params.id;
+
+  const { createProduct, updateProduct, fetchProductById, loading, error, clearError } = useProductsStore();
+
   const [activeTab, setActiveTab] = useState<FormTab>('general');
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [usageInput, setUsageInput] = useState('');
-  const [images, setImages] = useState<{ id: string; name: string; isPrimary: boolean }[]>([]);
+  const [images, setImages] = useState<{ file: File; preview: string; isPrimary: boolean }[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isEdit && productId) {
+      fetchProductById(productId).then((product) => {
+        if (product) {
+          setForm({
+            name: product.name,
+            reference: product.reference,
+            category: product.category,
+            description: product.description ?? '',
+            usages: product.usages ?? [],
+            lengthCm: product.lengthCm != null ? String(product.lengthCm) : '',
+            widthCm: product.widthCm != null ? String(product.widthCm) : '',
+            heightCm: product.heightCm != null ? String(product.heightCm) : '',
+            weightKg: product.weightKg != null ? String(product.weightKg) : '',
+            unitPrice: String(product.unitPrice),
+            bulkPrice: product.bulkPrice != null ? String(product.bulkPrice) : '',
+            bulkMinQuantity: product.bulkMinQuantity != null ? String(product.bulkMinQuantity) : '',
+            initialStock: '',
+            alertThreshold: '100',
+            criticalThreshold: '20',
+            status: product.status,
+          });
+        }
+      });
+    }
+  }, [isEdit, productId, fetchProductById]);
 
   const update = (field: keyof FormData, value: string | string[] | ProductStatus) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -86,18 +119,25 @@ export default function ProductFormPage() {
     update('usages', form.usages.filter((x) => x !== u));
   };
 
-  const addMockImage = () => {
-    const id = `img-${Date.now()}`;
-    setImages((prev) => [...prev, { id, name: `brique-${prev.length + 1}.jpg`, isPrimary: prev.length === 0 }]);
+  const handleImageFiles = (files: FileList | null) => {
+    if (!files) return;
+    const remaining = 5 - images.length;
+    const toAdd = Array.from(files).slice(0, remaining);
+    const newImages = toAdd.map((file, i) => ({
+      file,
+      preview: URL.createObjectURL(file),
+      isPrimary: images.length === 0 && i === 0,
+    }));
+    setImages((prev) => [...prev, ...newImages]);
   };
 
-  const setPrimary = (id: string) => {
-    setImages((prev) => prev.map((img) => ({ ...img, isPrimary: img.id === id })));
+  const setPrimary = (index: number) => {
+    setImages((prev) => prev.map((img, i) => ({ ...img, isPrimary: i === index })));
   };
 
-  const removeImage = (id: string) => {
+  const removeImage = (index: number) => {
     setImages((prev) => {
-      const filtered = prev.filter((img) => img.id !== id);
+      const filtered = prev.filter((_, i) => i !== index);
       if (filtered.length > 0 && !filtered.some((img) => img.isPrimary)) {
         filtered[0]!.isPrimary = true;
       }
@@ -105,9 +145,61 @@ export default function ProductFormPage() {
     });
   };
 
-  const handleSubmit = () => {
-    // In real app: API call via useMutation
-    navigate('/admin/products');
+  const handleSubmit = async () => {
+    setSubmitError(null);
+    clearError();
+
+    if (!form.name.trim()) { setSubmitError('Le nom du produit est requis'); setActiveTab('general'); return; }
+    if (!form.category) { setSubmitError('La catégorie est requise'); setActiveTab('general'); return; }
+    if (!form.unitPrice || Number(form.unitPrice) <= 0) { setSubmitError('Le prix unitaire est requis'); setActiveTab('pricing'); return; }
+
+    const payload = {
+      name: form.name.trim(),
+      reference: form.reference.trim() || undefined,
+      category: form.category as ProductCategory,
+      description: form.description.trim() || undefined,
+      usages: form.usages,
+      lengthCm: form.lengthCm ? Number(form.lengthCm) : undefined,
+      widthCm: form.widthCm ? Number(form.widthCm) : undefined,
+      heightCm: form.heightCm ? Number(form.heightCm) : undefined,
+      weightKg: form.weightKg ? Number(form.weightKg) : undefined,
+      unitPrice: Number(form.unitPrice),
+      bulkPrice: form.bulkPrice ? Number(form.bulkPrice) : undefined,
+      bulkMinQuantity: form.bulkMinQuantity ? Number(form.bulkMinQuantity) : undefined,
+      status: form.status,
+    };
+
+    try {
+      let savedProduct;
+      if (isEdit && productId) {
+        savedProduct = await updateProduct(productId, payload);
+      } else {
+        savedProduct = await createProduct(payload);
+      }
+
+      // Upload images (nouvelles images seulement)
+      if (images.length > 0 && savedProduct?.id) {
+        const formData = new FormData();
+        images.forEach((img) => formData.append('images', img.file));
+        try {
+          await fetch(
+            `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'}/products/${savedProduct.id}/images/bulk`,
+            {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${localStorage.getItem('bo_access_token')}` },
+              body: formData,
+            }
+          );
+        } catch {
+          // Images non critiques — le produit est sauvegardé
+        }
+      }
+
+      navigate('/admin/products');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Une erreur est survenue';
+      setSubmitError(message);
+    }
   };
 
   return (
@@ -127,11 +219,21 @@ export default function ProductFormPage() {
         </div>
         <button
           onClick={handleSubmit}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#FF8C00] text-white text-sm font-medium rounded-lg hover:bg-[#E67E00] transition-colors"
+          disabled={loading}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#FF8C00] text-white text-sm font-medium rounded-lg hover:bg-[#E67E00] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <Save size={16} /> {isEdit ? 'Enregistrer' : 'Créer le produit'}
+          {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {isEdit ? 'Enregistrer' : 'Créer le produit'}
         </button>
       </div>
+
+      {/* Error banner */}
+      {(submitError || error) && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm">
+          <AlertCircle size={16} className="shrink-0" />
+          <span>{submitError || error}</span>
+        </div>
+      )}
 
       <div className="flex gap-6">
         {/* Tab Nav */}
@@ -321,37 +423,43 @@ export default function ProductFormPage() {
                 <p className="text-sm text-gray-500 mb-4">1 à 5 images — JPG, PNG ou WebP — Max 5 Mo chacune</p>
 
                 {/* Drop zone */}
-                <button
-                  onClick={addMockImage}
-                  disabled={images.length >= 5}
-                  className="w-full border-2 border-dashed border-gray-300 rounded-xl py-10 flex flex-col items-center gap-2 hover:border-[#FF8C00] hover:bg-orange-50/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
+                <label className={cn(
+                  'w-full border-2 border-dashed border-gray-300 rounded-xl py-10 flex flex-col items-center gap-2 cursor-pointer hover:border-[#FF8C00] hover:bg-orange-50/30 transition-colors',
+                  images.length >= 5 && 'opacity-40 pointer-events-none',
+                )}>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleImageFiles(e.target.files)}
+                  />
                   <Upload size={24} className="text-gray-400" />
                   <p className="text-sm text-gray-500">Cliquez ou glissez-déposez vos images</p>
                   <p className="text-xs text-gray-400">{images.length}/5 images</p>
-                </button>
+                </label>
 
                 {/* Image list */}
                 {images.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-4">
-                    {images.map((img) => (
-                      <div key={img.id} className={cn(
+                    {images.map((img, index) => (
+                      <div key={index} className={cn(
                         'relative rounded-xl border-2 p-2 transition-colors',
                         img.isPrimary ? 'border-[#FF8C00] bg-orange-50/30' : 'border-gray-200',
                       )}>
-                        <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center mb-2">
-                          <Upload size={24} className="text-gray-300" />
+                        <div className="aspect-square rounded-lg overflow-hidden mb-2 bg-gray-100">
+                          <img src={img.preview} alt={img.file.name} className="w-full h-full object-cover" />
                         </div>
-                        <p className="text-xs text-gray-600 truncate">{img.name}</p>
+                        <p className="text-xs text-gray-600 truncate">{img.file.name}</p>
                         <div className="flex items-center justify-between mt-1">
                           <button
-                            onClick={() => setPrimary(img.id)}
+                            onClick={() => setPrimary(index)}
                             className={cn('text-xs font-medium', img.isPrimary ? 'text-[#FF8C00]' : 'text-gray-400 hover:text-[#FF8C00]')}
                           >
                             <Star size={12} className="inline mr-0.5" fill={img.isPrimary ? '#FF8C00' : 'none'} />
                             {img.isPrimary ? 'Principale' : 'Définir'}
                           </button>
-                          <button onClick={() => removeImage(img.id)} className="text-xs text-red-400 hover:text-red-600">
+                          <button onClick={() => removeImage(index)} className="text-xs text-red-400 hover:text-red-600">
                             <X size={14} />
                           </button>
                         </div>
