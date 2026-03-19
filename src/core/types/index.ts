@@ -136,24 +136,31 @@ export interface Order {
   updatedAt: string;
 }
 
-// ─── Produits ───────────────────────────────────────────────────
-export type ProductCategory = 'BRIQUE_PLEINE' | 'BRIQUE_CREUSE' | 'BRIQUE_REFRACTAIRE' | 'BRIQUE_DECORATIVE' | 'HOURDIS';
+// ─── Catégories produits ──────────────────────────────────────
+export interface Category {
+  id: string;
+  slug: string;
+  label: string;
+  description?: string;
+  iconName?: string;
+  colorHex?: string;
+  bgColorHex?: string;
+  isActive: boolean;
+  sortOrder: number;
+  productCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
-export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
-  BRIQUE_PLEINE: 'Briques pleines',
-  BRIQUE_CREUSE: 'Briques creuses',
-  BRIQUE_REFRACTAIRE: 'Briques réfractaires',
-  BRIQUE_DECORATIVE: 'Briques décoratives',
-  HOURDIS: 'Hourdis',
-};
-
+// ─── Produits ─────────────────────────────────────────────────
 export type ProductStatus = 'ACTIVE' | 'HIDDEN' | 'ARCHIVED';
 
 export interface Product {
   id: string;
   reference: string;
   name: string;
-  category: ProductCategory;
+  categoryId?: string;
+  category?: Category;
   description?: string;
   lengthCm?: number;
   widthCm?: number;

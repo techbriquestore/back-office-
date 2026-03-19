@@ -1,12 +1,13 @@
 import { create } from 'zustand';
-import type { ProductCategory, ProductStatus, PaginatedResponse } from '../../../core/types';
+import type { ProductStatus, PaginatedResponse, Category } from '../../../core/types';
 import ProductService from '../services/ProductService';
 
 export interface ProductWithStock {
   id: string;
   reference: string;
   name: string;
-  category: ProductCategory;
+  categoryId?: string;
+  category?: Category;
   description?: string;
   lengthCm?: number;
   widthCm?: number;
@@ -28,7 +29,7 @@ export interface ProductWithStock {
 
 export interface ProductsFilters {
   search: string;
-  category: ProductCategory | '';
+  categorySlug: string;
   status: ProductStatus | '';
   page: number;
   pageSize: number;
@@ -47,7 +48,7 @@ export interface ProductStats {
 export interface CreateProductPayload {
   reference?: string;
   name: string;
-  category: ProductCategory;
+  categoryId?: string;
   description?: string;
   lengthCm?: number;
   widthCm?: number;
@@ -89,7 +90,7 @@ interface ProductsState {
 
 const DEFAULT_FILTERS: ProductsFilters = {
   search: '',
-  category: '',
+  categorySlug: '',
   status: '',
   page: 1,
   pageSize: 20,

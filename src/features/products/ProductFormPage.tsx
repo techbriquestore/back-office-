@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Upload, X, Star, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PRODUCT_CATEGORY_LABELS } from '@/core/types';
-import type { ProductCategory, ProductStatus } from '@/core/types';
+import type { ProductStatus } from '@/core/types';
 import { useProductsStore } from './store/products.store';
+import { useCategoriesStore } from './store/categories.store';
 
 type FormTab = 'general' | 'specs' | 'pricing' | 'stock' | 'images' | 'status';
 
@@ -20,7 +20,7 @@ const TABS: { key: FormTab; label: string }[] = [
 interface FormData {
   name: string;
   reference: string;
-  category: ProductCategory | '';
+  categoryId: string;
   description: string;
   usages: string[];
   lengthCm: string;
@@ -39,7 +39,7 @@ interface FormData {
 const EMPTY_FORM: FormData = {
   name: '',
   reference: '',
-  category: '',
+  categoryId: '',
   description: '',
   usages: [],
   lengthCm: '',
@@ -70,6 +70,7 @@ export default function ProductFormPage() {
   const productId = params.id;
 
   const { createProduct, updateProduct, fetchProductById, loading, error, clearError } = useProductsStore();
+  const { categories, fetchCategories, loading: categoriesLoading } = useCategoriesStore();
 
   const [activeTab, setActiveTab] = useState<FormTab>('general');
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
@@ -78,13 +79,17 @@ export default function ProductFormPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  useEffect(() => {
     if (isEdit && productId) {
       fetchProductById(productId).then((product) => {
         if (product) {
           setForm({
             name: product.name,
             reference: product.reference,
-            category: product.category,
+            categoryId: product.categoryId ?? '',
             description: product.description ?? '',
             usages: product.usages ?? [],
             lengthCm: product.lengthCm != null ? String(product.lengthCm) : '',
@@ -150,13 +155,13 @@ export default function ProductFormPage() {
     clearError();
 
     if (!form.name.trim()) { setSubmitError('Le nom du produit est requis'); setActiveTab('general'); return; }
-    if (!form.category) { setSubmitError('La catégorie est requise'); setActiveTab('general'); return; }
+    if (!form.categoryId) { setSubmitError('La catégorie est requise'); setActiveTab('general'); return; }
     if (!form.unitPrice || Number(form.unitPrice) <= 0) { setSubmitError('Le prix unitaire est requis'); setActiveTab('pricing'); return; }
 
     const payload = {
       name: form.name.trim(),
       reference: form.reference.trim() || undefined,
-      category: form.category as ProductCategory,
+      categoryId: form.categoryId,
       description: form.description.trim() || undefined,
       usages: form.usages,
       lengthCm: form.lengthCm ? Number(form.lengthCm) : undefined,
@@ -288,13 +293,14 @@ export default function ProductFormPage() {
                 <div>
                   <FieldLabel label="Catégorie" required />
                   <select
-                    value={form.category}
-                    onChange={(e) => update('category', e.target.value)}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#FF8C00] outline-none"
+                    value={form.categoryId}
+                    onChange={(e) => update('categoryId', e.target.value)}
+                    disabled={categoriesLoading}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#FF8C00] outline-none disabled:bg-gray-50"
                   >
-                    <option value="">Sélectionner une catégorie</option>
-                    {Object.entries(PRODUCT_CATEGORY_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
+                    <option value="">{categoriesLoading ? 'Chargement...' : 'Sélectionner une catégorie'}</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.label}</option>
                     ))}
                   </select>
                 </div>

@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, RefreshCw, AlertCircle } from 'lucide-react';
-import type { ProductCategory, ProductStatus } from '@/core/types';
+import type { ProductStatus } from '@/core/types';
 import { useProductsStore } from '@/features/products/store/products.store';
+import { useCategoriesStore } from './store/categories.store';
 import { ProductsFilters } from './components/ProductsFilters';
 import { ProductsTable } from './components/ProductsTable';
 
@@ -10,10 +11,15 @@ export default function ProductsListPage() {
   const navigate = useNavigate();
   const { products, total, filters, loading, error, setFilters, fetchProducts, clearError } =
     useProductsStore();
+  const { categories, fetchCategories, loading: categoriesLoading } = useCategoriesStore();
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts, filters.category, filters.status, filters.page]);
+  }, [fetchProducts, filters.categorySlug, filters.status, filters.page]);
 
   return (
     <div>
@@ -53,11 +59,13 @@ export default function ProductsListPage() {
       {/* Filters */}
       <ProductsFilters
         search={filters.search}
-        category={filters.category as ProductCategory | ''}
+        categorySlug={filters.categorySlug}
         status={filters.status as ProductStatus | ''}
+        categories={categories}
+        categoriesLoading={categoriesLoading}
         onSearchChange={(value) => setFilters({ search: value })}
         onSearchSubmit={(e) => { e.preventDefault(); fetchProducts(); }}
-        onCategoryChange={(category) => setFilters({ category, page: 1 })}
+        onCategoryChange={(categorySlug) => setFilters({ categorySlug, page: 1 })}
         onStatusChange={(status) => setFilters({ status, page: 1 })}
       />
 

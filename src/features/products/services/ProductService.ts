@@ -26,7 +26,7 @@ export const getProducts = (
   const params = new URLSearchParams();
 
   if (filters.search) params.append('search', filters.search);
-  if (filters.category) params.append('category', filters.category);
+  if (filters.categorySlug) params.append('categorySlug', filters.categorySlug);
   if (filters.status) params.append('status', filters.status);
   params.append('page', String(filters.page));
   params.append('pageSize', String(filters.pageSize));

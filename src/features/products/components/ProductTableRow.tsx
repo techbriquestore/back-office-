@@ -2,7 +2,6 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, Edit, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCFA } from '@/core/utils/formatters';
-import { PRODUCT_CATEGORY_LABELS } from '@/core/types';
 import type { ProductStatus } from '@/core/types';
 import type { ProductWithStock } from '@/features/products/store/products.store';
 
@@ -39,7 +38,7 @@ export function ProductTableRow({ product }: Props) {
           </div>
         </div>
       </td>
-      <td className="px-4 py-3 text-sm text-gray-600">{PRODUCT_CATEGORY_LABELS[product.category]}</td>
+      <td className="px-4 py-3 text-sm text-gray-600">{product.category?.label ?? '—'}</td>
       <td className="px-4 py-3 text-xs text-gray-500">
         {product.lengthCm && product.widthCm && product.heightCm
           ? `${product.lengthCm}×${product.widthCm}×${product.heightCm} cm`

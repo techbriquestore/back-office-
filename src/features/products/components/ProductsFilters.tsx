@@ -1,21 +1,24 @@
 import { Search } from 'lucide-react';
-import { PRODUCT_CATEGORY_LABELS } from '@/core/types';
-import type { ProductCategory, ProductStatus } from '@/core/types';
+import type { ProductStatus, Category } from '@/core/types';
 
 interface Props {
   search: string;
-  category: ProductCategory | '';
+  categorySlug: string;
   status: ProductStatus | '';
+  categories: Category[];
+  categoriesLoading: boolean;
   onSearchChange: (value: string) => void;
   onSearchSubmit: (e: React.FormEvent) => void;
-  onCategoryChange: (category: ProductCategory | '') => void;
+  onCategoryChange: (slug: string) => void;
   onStatusChange: (status: ProductStatus | '') => void;
 }
 
 export function ProductsFilters({
   search,
-  category,
+  categorySlug,
   status,
+  categories,
+  categoriesLoading,
   onSearchChange,
   onSearchSubmit,
   onCategoryChange,
@@ -34,13 +37,14 @@ export function ProductsFilters({
         />
       </div>
       <select
-        value={category}
-        onChange={(e) => onCategoryChange(e.target.value as ProductCategory | '')}
-        className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+        value={categorySlug}
+        onChange={(e) => onCategoryChange(e.target.value)}
+        disabled={categoriesLoading}
+        className="px-3 py-2 border border-gray-200 rounded-lg text-sm disabled:bg-gray-50"
       >
-        <option value="">Toutes catégories</option>
-        {Object.entries(PRODUCT_CATEGORY_LABELS).map(([k, v]) => (
-          <option key={k} value={k}>{v}</option>
+        <option value="">{categoriesLoading ? 'Chargement...' : 'Toutes catégories'}</option>
+        {categories.map((cat) => (
+          <option key={cat.id} value={cat.slug}>{cat.label}</option>
         ))}
       </select>
       <select
