@@ -6,13 +6,12 @@ import type { ProductStatus } from '@/core/types';
 import { useProductsStore } from './store/products.store';
 import { useCategoriesStore } from './store/categories.store';
 
-type FormTab = 'general' | 'specs' | 'pricing' | 'stock' | 'images' | 'status';
+type FormTab = 'general' | 'specs' | 'pricing' | 'images' | 'status';
 
 const TABS: { key: FormTab; label: string }[] = [
   { key: 'general', label: 'Infos générales' },
   { key: 'specs', label: 'Caractéristiques' },
   { key: 'pricing', label: 'Tarification' },
-  { key: 'stock', label: 'Stock' },
   { key: 'images', label: 'Images' },
   { key: 'status', label: 'Statut' },
 ];
@@ -30,9 +29,6 @@ interface FormData {
   unitPrice: string;
   bulkPrice: string;
   bulkMinQuantity: string;
-  initialStock: string;
-  alertThreshold: string;
-  criticalThreshold: string;
   status: ProductStatus;
 }
 
@@ -49,9 +45,6 @@ const EMPTY_FORM: FormData = {
   unitPrice: '',
   bulkPrice: '',
   bulkMinQuantity: '',
-  initialStock: '',
-  alertThreshold: '100',
-  criticalThreshold: '20',
   status: 'ACTIVE',
 };
 
@@ -71,6 +64,8 @@ export default function ProductFormPage() {
 
   const { createProduct, updateProduct, fetchProductById, loading, error, clearError } = useProductsStore();
   const { categories, fetchCategories, loading: categoriesLoading } = useCategoriesStore();
+
+
 
   const [activeTab, setActiveTab] = useState<FormTab>('general');
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
@@ -161,16 +156,16 @@ export default function ProductFormPage() {
     const payload = {
       name: form.name.trim(),
       reference: form.reference.trim() || undefined,
-      categoryId: form.categoryId,
+      categoryId: form.categoryId || undefined,
       description: form.description.trim() || undefined,
       usages: form.usages,
       lengthCm: form.lengthCm ? Number(form.lengthCm) : undefined,
       widthCm: form.widthCm ? Number(form.widthCm) : undefined,
       heightCm: form.heightCm ? Number(form.heightCm) : undefined,
       weightKg: form.weightKg ? Number(form.weightKg) : undefined,
-      unitPrice: Number(form.unitPrice),
-      bulkPrice: form.bulkPrice ? Number(form.bulkPrice) : undefined,
-      bulkMinQuantity: form.bulkMinQuantity ? Number(form.bulkMinQuantity) : undefined,
+      unitPrice: Math.round(Number(form.unitPrice)),
+      bulkPrice: form.bulkPrice ? Math.round(Number(form.bulkPrice)) : undefined,
+      bulkMinQuantity: form.bulkMinQuantity ? Math.round(Number(form.bulkMinQuantity)) : undefined,
       status: form.status,
     };
 
@@ -393,31 +388,6 @@ export default function ProductFormPage() {
                   <p className="text-sm text-[#FF8C00] font-medium">
                     Le prix gros s'applique automatiquement lorsque la quantité commandée atteint le seuil minimum.
                   </p>
-                </div>
-              </div>
-            )}
-
-            {/* Stock */}
-            {activeTab === 'stock' && (
-              <div className="space-y-5">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Paramètres de stock</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {!isEdit && (
-                    <div>
-                      <FieldLabel label="Stock initial" />
-                      <input type="number" value={form.initialStock} onChange={(e) => update('initialStock', e.target.value)} placeholder="0" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#FF8C00] outline-none" />
-                    </div>
-                  )}
-                  <div>
-                    <FieldLabel label="Seuil d'alerte" />
-                    <input type="number" value={form.alertThreshold} onChange={(e) => update('alertThreshold', e.target.value)} placeholder="100" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#FF8C00] outline-none" />
-                    <p className="text-xs text-gray-400 mt-1">Notification lorsque le stock descend sous ce seuil</p>
-                  </div>
-                  <div>
-                    <FieldLabel label="Seuil critique" />
-                    <input type="number" value={form.criticalThreshold} onChange={(e) => update('criticalThreshold', e.target.value)} placeholder="20" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#FF8C00] outline-none" />
-                    <p className="text-xs text-gray-400 mt-1">Produit masqué automatiquement du catalogue</p>
-                  </div>
                 </div>
               </div>
             )}

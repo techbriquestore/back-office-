@@ -41,7 +41,7 @@ export const toggleCategoryActive = (id: string): Promise<Category> =>
 export const deleteCategory = (id: string): Promise<void> =>
   api.delete(`/categories/${id}`).then(() => undefined);
 
-// ─── Service Object ───────────────────────────────────────────────────────────
+// Service Object 
 
 const CategoryService = {
   getCategories,

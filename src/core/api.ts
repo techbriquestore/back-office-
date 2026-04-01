@@ -46,6 +46,15 @@ api.interceptors.response.use(
       }
     }
 
+    // Extraire le vrai message de validation du backend (NestJS class-validator)
+    const backendMessage = error.response?.data?.message;
+    if (backendMessage) {
+      const msg = Array.isArray(backendMessage)
+        ? backendMessage.join(', ')
+        : String(backendMessage);
+      return Promise.reject(new Error(msg));
+    }
+
     return Promise.reject(error);
   },
 );
