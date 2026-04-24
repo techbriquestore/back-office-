@@ -1,22 +1,27 @@
+import { useAuthStore } from '@/core/stores/auth.store';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
 class ApiClient {
   private baseURL: string;
-  private token: string | null = null;
 
   constructor() {
     this.baseURL = API_BASE_URL;
-    this.token = localStorage.getItem('auth_token');
+  }
+
+  private getToken(): string | null {
+    // Utiliser le store Zustand au lieu de localStorage
+    return useAuthStore.getState().accessToken;
   }
 
   setToken(token: string) {
-    this.token = token;
-    localStorage.setItem('auth_token', token);
+    // Déprécié : le token est maintenant géré par le store
+    console.warn('setToken is deprecated, tokens are managed by auth store');
   }
 
   clearToken() {
-    this.token = null;
-    localStorage.removeItem('auth_token');
+    // Déprécié : le token est maintenant géré par le store
+    console.warn('clearToken is deprecated, tokens are managed by auth store');
   }
 
   private async request<T>(
@@ -24,15 +29,39 @@ class ApiClient {
     options: RequestInit = {},
   ): Promise<{ data: T }> {
     const url = `${this.baseURL}${endpoint}`;
+    const token = this.getToken();
+    
+    // Fonction utilitaire pour lire le cookie CSRF
+    const getCookie = (name: string): string | null => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) {
+        return parts.pop()?.split(';').shift() || null;
+      }
+      return null;
+    };
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      ...(this.token && { Authorization: `Bearer ${this.token}` }),
+      ...(token && { Authorization: `Bearer ${token}` }),
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
       ...options.headers,
     };
+
+    // Ajouter le header CSRF pour les mutations
+    const method = options.method || 'GET';
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) {
+      const csrfToken = getCookie('bo_csrf_token');
+      if (csrfToken) {
+        (headers as Record<string, string>)['X-CSRF-Token'] = csrfToken;
+      }
+    }
 
     const response = await fetch(url, {
       ...options,
       headers,
+      credentials: 'include', // Pour envoyer les cookies httpOnly
     });
 
     if (!response.ok) {
@@ -40,7 +69,8 @@ class ApiClient {
       throw new Error(error.message || `Erreur HTTP ${response.status}`);
     }
 
-    return response.json();
+    const json = await response.json();
+    return { data: json };
   }
 
   async get<T>(endpoint: string): Promise<{ data: T }> {

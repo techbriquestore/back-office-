@@ -1,25 +1,13 @@
 import { create } from 'zustand';
+import axios from 'axios';
 import type { AuthUser, Role } from '../types';
 import api from '../api';
 
-// Mock users for development (when backend is not running)
-const MOCK_USERS: Record<string, AuthUser> = {
-  'admin@briques.store': {
-    id: 'dev-1', email: 'admin@briques.store', firstName: 'Super', lastName: 'Admin',
-    role: 'SUPER_ADMIN', status: 'ACTIVE', createdAt: '2025-01-01T00:00:00Z',
-  },
-  'commercial@briques.store': {
-    id: 'dev-2', email: 'commercial@briques.store', firstName: 'Konan', lastName: 'Marc',
-    role: 'COMMERCIAL_LOGISTICS', status: 'ACTIVE', createdAt: '2025-01-01T00:00:00Z',
-  },
-  'service@briques.store': {
-    id: 'dev-3', email: 'service@briques.store', firstName: 'Marie', lastName: 'Kouadio',
-    role: 'SERVICE_CLIENT', status: 'ACTIVE', createdAt: '2025-01-01T00:00:00Z',
-  },
-};
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
 interface AuthState {
   user: AuthUser | null;
+  accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -27,6 +15,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   fetchProfile: () => Promise<void>;
+  refreshSession: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   clearError: () => void;
   hasRole: (...roles: Role[]) => boolean;
@@ -34,26 +23,27 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  isAuthenticated: !!localStorage.getItem('bo_access_token'),
+  accessToken: null,
+  isAuthenticated: false,
   isLoading: false,
   error: null,
 
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      const { data } = await api.post('/backoffice/auth/login', { email, password });
-      localStorage.setItem('bo_access_token', data.accessToken);
-      localStorage.setItem('bo_refresh_token', data.refreshToken);
-      set({ user: data.user, isAuthenticated: true, isLoading: false });
-    } catch {
-      // DEV fallback: if API is unreachable, use mock users
-      const mockUser = MOCK_USERS[email];
-      if (mockUser && password) {
-        localStorage.setItem('bo_access_token', 'dev-token');
-        set({ user: mockUser, isAuthenticated: true, isLoading: false });
-        return;
-      }
-      set({ error: 'Email ou mot de passe incorrect', isLoading: false });
+      console.log('Appel API login...');
+      const { data } = await api.post('/backoffice/auth/login', { identifier: email, password });
+      console.log('Réponse API login:', data);
+      // Stocker l'access token en mémoire (pas localStorage)
+      // Le refresh token et CSRF token sont dans les cookies httpOnly
+      set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true, isLoading: false });
+      console.log('Store mis à jour avec user:', data.user, 'isAuthenticated: true');
+    } catch (err: unknown) {
+      console.error('Erreur login:', err);
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Email ou mot de passe incorrect';
+      set({ error: message, isLoading: false });
       throw new Error('Login failed');
     }
   },
@@ -64,9 +54,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // ignore
     } finally {
-      localStorage.removeItem('bo_access_token');
-      localStorage.removeItem('bo_refresh_token');
-      set({ user: null, isAuthenticated: false });
+      // Nettoyer le store (mémoire)
+      set({ user: null, accessToken: null, isAuthenticated: false });
     }
   },
 
@@ -75,14 +64,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data } = await api.get('/backoffice/auth/profile');
       set({ user: data, isAuthenticated: true });
     } catch {
-      // DEV fallback: if token exists but API unreachable, set default mock user
-      if (localStorage.getItem('bo_access_token') === 'dev-token') {
-        set({ user: MOCK_USERS['admin@briques.store']!, isAuthenticated: true });
-        return;
-      }
-      localStorage.removeItem('bo_access_token');
-      localStorage.removeItem('bo_refresh_token');
-      set({ user: null, isAuthenticated: false });
+      set({ user: null, accessToken: null, isAuthenticated: false });
+    }
+  },
+
+  refreshSession: async () => {
+    try {
+      // Utiliser axios directement sans l'interceptor pour éviter boucle infinie
+      const { data } = await axios.post(`${API_BASE_URL}/backoffice/auth/refresh`, {}, {
+        withCredentials: true,
+      });
+      // Stocker l'access token en mémoire
+      set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true });
+    } catch {
+      set({ user: null, accessToken: null, isAuthenticated: false });
     }
   },
 

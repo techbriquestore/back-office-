@@ -127,11 +127,9 @@ class OrdersApiService {
     return response.data;
   }
 
-  // Helper: Get preorders (orders with installment payments not fully paid)
-  async getPreorders(query: OrdersQuery = {}): Promise<OrdersResponse> {
-    // Preorders are orders where payment is not complete
-    // For now, we can filter by status or check payment completion on client side
-    return this.getOrders({ ...query });
+  async addNote(orderId: string, content: string): Promise<any> {
+    const response = await apiClient.post(`/admin/orders/${orderId}/notes`, { content });
+    return response.data;
   }
 }
 

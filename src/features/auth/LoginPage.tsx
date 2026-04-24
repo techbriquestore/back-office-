@@ -14,9 +14,12 @@ export default function LoginPage() {
     e.preventDefault();
     clearError();
     try {
+      console.log('Tentative de login...');
       await login(email, password);
+      console.log('Login réussi, redirection vers /admin/dashboard...');
       navigate('/admin/dashboard', { replace: true });
-    } catch {
+    } catch (err) {
+      console.error('Login échoué:', err);
       // error is set in store
     }
   };
@@ -103,29 +106,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        {/* Dev accounts hint */}
-        <div className="mt-6 bg-white/5 border border-white/10 rounded-xl p-4">
-          <p className="text-xs font-semibold text-gray-400 mb-2">Comptes de test :</p>
-          <div className="space-y-1.5">
-            {[
-              { email: 'admin@briques.store', role: 'Super Admin' },
-              { email: 'commercial@briques.store', role: 'Resp. Commercial' },
-              { email: 'service@briques.store', role: 'Service Client' },
-            ].map((acc) => (
-              <button
-                key={acc.email}
-                type="button"
-                onClick={() => { setEmail(acc.email); setPassword('demo'); }}
-                className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left hover:bg-white/5 transition-colors"
-              >
-                <span className="text-xs text-gray-400">{acc.email}</span>
-                <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded">{acc.role}</span>
-              </button>
-            ))}
-          </div>
-          <p className="text-[10px] text-gray-500 mt-2">Mot de passe : n'importe lequel</p>
-        </div>
 
         <p className="text-center text-gray-500 text-xs mt-4">
           © {new Date().getFullYear()} BRIQUES.STORE — Tous droits réservés

@@ -215,7 +215,7 @@ export interface StockMovement {
 }
 
 // ─── Pré-commandes ──────────────────────────────────────────────
-export type PreorderStatus = 'ACTIVE' | 'COMPLETED' | 'SUSPENDED' | 'CANCELLED';
+export type PreorderStatus = 'ACTIVE' | 'COMPLETED' | 'CONVERTED' | 'SUSPENDED' | 'CANCELLED';
 
 export interface Preorder {
   id: string;

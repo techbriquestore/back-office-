@@ -61,6 +61,20 @@ export default function OrdersListPage() {
       });
       setOrders(response.data.map(transformApiOrder));
       setTotal(response.total);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+      console.log(response);
+
     } catch (error) {
       console.error('Error loading orders:', error);
     } finally {
@@ -78,15 +92,16 @@ export default function OrdersListPage() {
 
   // Transform API order to match existing Order type
   function transformApiOrder(apiOrder: Order): any {
+    const firstPayment = apiOrder.payments?.[0];
     return {
       ...apiOrder,
-      customerName: `${apiOrder.user.firstName} ${apiOrder.user.lastName}`,
-      customerPhone: apiOrder.user.phone,
-      customerEmail: apiOrder.user.email,
+      customerName: apiOrder.user ? `${apiOrder.user.firstName} ${apiOrder.user.lastName}` : 'Inconnu',
+      customerPhone: apiOrder.user?.phone,
+      customerEmail: apiOrder.user?.email,
       customerType: 'PARTICULIER', // TODO: get from user.clientType
-      paymentMethod: apiOrder.payments[0]?.method,
-      paymentStatus: apiOrder.payments[0]?.status,
-      driverName: apiOrder.driver ? `${apiOrder.driver.firstName} ${apiOrder.driver.lastName}` : undefined,
+      paymentMethod: firstPayment?.method,
+      paymentStatus: firstPayment?.status,
+      driverName: apiOrder.driver?.user ? `${apiOrder.driver.user.firstName} ${apiOrder.driver.user.lastName}` : undefined,
     };
   }
 
