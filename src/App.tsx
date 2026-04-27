@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
 
 import AdminLayout from "@/layouts/AdminLayout";
@@ -40,12 +40,27 @@ const queryClient = new QueryClient({
   },
 });
 
-// Composant interne pour utiliser useLocation dans le contexte du Router
 function AppContent() {
-  const location = useLocation();
+  const refreshSession = useAuthStore((s) => s.refreshSession);
+  const isInitialized = useAuthStore((s) => s.isInitialized);
 
-  // Plus d'appel automatique à refreshSession - l'utilisateur se connecte via le formulaire de login
-  // Les cookies httpOnly (refresh token) seront utilisés automatiquement par les requêtes API
+  useEffect(() => {
+    // Restaurer la session au démarrage via le cookie httpOnly bo_refresh_token
+    // refreshSession utilise axios directement (pas d'interceptor) → pas de boucle
+    refreshSession();
+  }, [refreshSession]);
+
+  // Afficher un loader pendant l'initialisation pour éviter une redirection prématurée vers /login
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-[#FF8C00] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Routes>

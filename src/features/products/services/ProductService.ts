@@ -28,6 +28,7 @@ export const getProducts = (
   if (filters.search) params.append('search', filters.search);
   if (filters.categorySlug) params.append('categorySlug', filters.categorySlug);
   if (filters.status) params.append('status', filters.status);
+  if (filters.deletedOnly) params.append('deletedOnly', 'true');
   params.append('page', String(filters.page));
   params.append('pageSize', String(filters.pageSize));
   params.append('sortBy', filters.sortBy);
@@ -66,6 +67,9 @@ export const updateProductStatus = (
 export const deleteProduct = (id: string): Promise<void> =>
   api.delete(`/products/${id}`).then(() => undefined);
 
+export const restoreProduct = (id: string): Promise<ProductWithStock> =>
+  api.patch<ProductWithStock>(`/products/${id}/restore`).then((res) => res.data);
+
 // ─── Images ──────────────────────────────────────────────────────────────────
 
 export const addProductImage = (
@@ -98,6 +102,7 @@ const ProductService = {
   updateProduct,
   updateProductStatus,
   deleteProduct,
+  restoreProduct,
   addProductImage,
   addProductImagesBulk,
   removeProductImage,

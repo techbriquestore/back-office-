@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import type { ProductStatus } from '@/core/types';
 import { useProductsStore } from './store/products.store';
 import { useCategoriesStore } from './store/categories.store';
+import { useAuthStore } from '@/core/stores/auth.store';
 
 type FormTab = 'general' | 'specs' | 'pricing' | 'images' | 'status';
 
@@ -64,13 +65,14 @@ export default function ProductFormPage() {
 
   const { createProduct, updateProduct, fetchProductById, loading, error, clearError } = useProductsStore();
   const { categories, fetchCategories, loading: categoriesLoading } = useCategoriesStore();
-
-
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   const [activeTab, setActiveTab] = useState<FormTab>('general');
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [usageInput, setUsageInput] = useState('');
   const [images, setImages] = useState<{ file: File; preview: string; isPrimary: boolean }[]>([]);
+  const [existingImages, setExistingImages] = useState<{ id: string; url: string; isPrimary: boolean; sortOrder: number }[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -94,11 +96,11 @@ export default function ProductFormPage() {
             unitPrice: String(product.unitPrice),
             bulkPrice: product.bulkPrice != null ? String(product.bulkPrice) : '',
             bulkMinQuantity: product.bulkMinQuantity != null ? String(product.bulkMinQuantity) : '',
-            initialStock: '',
-            alertThreshold: '100',
-            criticalThreshold: '20',
             status: product.status,
           });
+          if (product.images?.length) {
+            setExistingImages(product.images);
+          }
         }
       });
     }
@@ -119,30 +121,55 @@ export default function ProductFormPage() {
     update('usages', form.usages.filter((x) => x !== u));
   };
 
+  const totalImages = existingImages.length + images.length;
+
   const handleImageFiles = (files: FileList | null) => {
     if (!files) return;
-    const remaining = 5 - images.length;
+    const remaining = 5 - totalImages;
+    if (remaining <= 0) return;
     const toAdd = Array.from(files).slice(0, remaining);
     const newImages = toAdd.map((file, i) => ({
       file,
       preview: URL.createObjectURL(file),
-      isPrimary: images.length === 0 && i === 0,
+      isPrimary: existingImages.length === 0 && images.length === 0 && i === 0,
     }));
     setImages((prev) => [...prev, ...newImages]);
   };
 
   const setPrimary = (index: number) => {
+    setExistingImages((prev) => prev.map((img) => ({ ...img, isPrimary: false })));
     setImages((prev) => prev.map((img, i) => ({ ...img, isPrimary: i === index })));
+  };
+
+  const setExistingPrimary = (id: string) => {
+    setImages((prev) => prev.map((img) => ({ ...img, isPrimary: false })));
+    setExistingImages((prev) => prev.map((img) => ({ ...img, isPrimary: img.id === id })));
   };
 
   const removeImage = (index: number) => {
     setImages((prev) => {
       const filtered = prev.filter((_, i) => i !== index);
-      if (filtered.length > 0 && !filtered.some((img) => img.isPrimary)) {
+      if (filtered.length > 0 && !filtered.some((img) => img.isPrimary) && existingImages.every((img) => !img.isPrimary)) {
         filtered[0]!.isPrimary = true;
       }
       return filtered;
     });
+  };
+
+  const removeExistingImage = async (imageId: string) => {
+    try {
+      await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'}/products/images/${imageId}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          credentials: 'include',
+        }
+      );
+      setExistingImages((prev) => prev.filter((img) => img.id !== imageId));
+    } catch {
+      setSubmitError("Erreur lors de la suppression de l'image");
+    }
   };
 
   const handleSubmit = async () => {
@@ -179,19 +206,26 @@ export default function ProductFormPage() {
 
       // Upload images (nouvelles images seulement)
       if (images.length > 0 && savedProduct?.id) {
+        setUploadingImages(true);
         const formData = new FormData();
         images.forEach((img) => formData.append('images', img.file));
         try {
-          await fetch(
+          const res = await fetch(
             `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1'}/products/${savedProduct.id}/images/bulk`,
             {
               method: 'POST',
-              headers: { Authorization: `Bearer ${localStorage.getItem('bo_access_token')}` },
+              headers: { Authorization: `Bearer ${accessToken}` },
+              credentials: 'include',
               body: formData,
             }
           );
+          if (!res.ok) {
+            console.error('Erreur upload images:', await res.text());
+          }
         } catch {
           // Images non critiques — le produit est sauvegardé
+        } finally {
+          setUploadingImages(false);
         }
       }
 
@@ -412,35 +446,78 @@ export default function ProductFormPage() {
                   />
                   <Upload size={24} className="text-gray-400" />
                   <p className="text-sm text-gray-500">Cliquez ou glissez-déposez vos images</p>
-                  <p className="text-xs text-gray-400">{images.length}/5 images</p>
+                  <p className="text-xs text-gray-400">{totalImages}/5 images</p>
                 </label>
 
-                {/* Image list */}
+                {/* Existing images (from server) */}
+                {existingImages.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Images existantes</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                      {existingImages.map((img) => (
+                        <div key={img.id} className={cn(
+                          'relative rounded-xl border-2 p-2 transition-colors',
+                          img.isPrimary ? 'border-[#FF8C00] bg-orange-50/30' : 'border-gray-200',
+                        )}>
+                          <div className="aspect-square rounded-lg overflow-hidden mb-2 bg-gray-100">
+                            <img src={img.url} alt="Produit" className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                            <button
+                              onClick={() => setExistingPrimary(img.id)}
+                              className={cn('text-xs font-medium', img.isPrimary ? 'text-[#FF8C00]' : 'text-gray-400 hover:text-[#FF8C00]')}
+                            >
+                              <Star size={12} className="inline mr-0.5" fill={img.isPrimary ? '#FF8C00' : 'none'} />
+                              {img.isPrimary ? 'Principale' : 'Définir'}
+                            </button>
+                            <button onClick={() => removeExistingImage(img.id)} className="text-xs text-red-400 hover:text-red-600">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* New images (to upload) */}
                 {images.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-4">
-                    {images.map((img, index) => (
-                      <div key={index} className={cn(
-                        'relative rounded-xl border-2 p-2 transition-colors',
-                        img.isPrimary ? 'border-[#FF8C00] bg-orange-50/30' : 'border-gray-200',
-                      )}>
-                        <div className="aspect-square rounded-lg overflow-hidden mb-2 bg-gray-100">
-                          <img src={img.preview} alt={img.file.name} className="w-full h-full object-cover" />
+                  <div>
+                    {existingImages.length > 0 && (
+                      <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Nouvelles images</p>
+                    )}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                      {images.map((img, index) => (
+                        <div key={index} className={cn(
+                          'relative rounded-xl border-2 p-2 transition-colors',
+                          img.isPrimary ? 'border-[#FF8C00] bg-orange-50/30' : 'border-gray-200',
+                        )}>
+                          <div className="aspect-square rounded-lg overflow-hidden mb-2 bg-gray-100">
+                            <img src={img.preview} alt={img.file.name} className="w-full h-full object-cover" />
+                          </div>
+                          <p className="text-xs text-gray-600 truncate">{img.file.name}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <button
+                              onClick={() => setPrimary(index)}
+                              className={cn('text-xs font-medium', img.isPrimary ? 'text-[#FF8C00]' : 'text-gray-400 hover:text-[#FF8C00]')}
+                            >
+                              <Star size={12} className="inline mr-0.5" fill={img.isPrimary ? '#FF8C00' : 'none'} />
+                              {img.isPrimary ? 'Principale' : 'Définir'}
+                            </button>
+                            <button onClick={() => removeImage(index)} className="text-xs text-red-400 hover:text-red-600">
+                              <X size={14} />
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-600 truncate">{img.file.name}</p>
-                        <div className="flex items-center justify-between mt-1">
-                          <button
-                            onClick={() => setPrimary(index)}
-                            className={cn('text-xs font-medium', img.isPrimary ? 'text-[#FF8C00]' : 'text-gray-400 hover:text-[#FF8C00]')}
-                          >
-                            <Star size={12} className="inline mr-0.5" fill={img.isPrimary ? '#FF8C00' : 'none'} />
-                            {img.isPrimary ? 'Principale' : 'Définir'}
-                          </button>
-                          <button onClick={() => removeImage(index)} className="text-xs text-red-400 hover:text-red-600">
-                            <X size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {uploadingImages && (
+                  <div className="flex items-center gap-2 text-sm text-[#FF8C00]">
+                    <Loader2 size={16} className="animate-spin" />
+                    Upload des images en cours...
                   </div>
                 )}
               </div>

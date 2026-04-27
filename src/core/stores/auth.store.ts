@@ -10,6 +10,7 @@ interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
   error: string | null;
 
   login: (email: string, password: string) => Promise<void>;
@@ -26,6 +27,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: null,
   isAuthenticated: false,
   isLoading: false,
+  isInitialized: false,
   error: null,
 
   login: async (email, password) => {
@@ -75,9 +77,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         withCredentials: true,
       });
       // Stocker l'access token en mémoire
-      set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true });
+      set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true, isInitialized: true });
     } catch {
-      set({ user: null, accessToken: null, isAuthenticated: false });
+      set({ user: null, accessToken: null, isAuthenticated: false, isInitialized: true });
     }
   },
 

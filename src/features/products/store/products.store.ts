@@ -21,6 +21,8 @@ export interface ProductWithStock {
   images: { id: string; url: string; isPrimary: boolean; sortOrder: number }[];
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
   stock?: {
     available: number;
     level: 'NORMAL' | 'ALERT' | 'CRITICAL';
@@ -31,6 +33,7 @@ export interface ProductsFilters {
   search: string;
   categorySlug: string;
   status: ProductStatus | '';
+  deletedOnly: boolean;
   page: number;
   pageSize: number;
   sortBy: string;
@@ -42,6 +45,7 @@ export interface ProductStats {
   active: number;
   hidden: number;
   archived: number;
+  deleted: number;
   lowStock: number;
 }
 
@@ -83,6 +87,7 @@ interface ProductsState {
   updateProduct: (id: string, payload: UpdateProductPayload) => Promise<ProductWithStock>;
   updateProductStatus: (id: string, status: ProductStatus) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
+  restoreProduct: (id: string) => Promise<void>;
   addProductImage: (productId: string, url: string, isPrimary?: boolean) => Promise<void>;
   removeProductImage: (imageId: string) => Promise<void>;
   clearError: () => void;
@@ -92,6 +97,7 @@ const DEFAULT_FILTERS: ProductsFilters = {
   search: '',
   categorySlug: '',
   status: '',
+  deletedOnly: false,
   page: 1,
   pageSize: 20,
   sortBy: 'createdAt',
@@ -217,6 +223,21 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       }));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erreur lors de la suppression';
+      set({ error: message, loading: false });
+      throw new Error(message);
+    }
+  },
+
+  restoreProduct: async (id) => {
+    set({ loading: true, error: null });
+    try {
+      await ProductService.restoreProduct(id);
+      set((state) => ({
+        products: state.products.filter((p) => p.id !== id),
+        loading: false,
+      }));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erreur lors de la restauration';
       set({ error: message, loading: false });
       throw new Error(message);
     }

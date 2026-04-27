@@ -5,9 +5,12 @@ import { ProductTableRow } from './ProductTableRow';
 interface Props {
   products: ProductWithStock[];
   loading: boolean;
+  onDelete: (id: string) => Promise<void>;
+  isTrash?: boolean;
+  onRestore?: (id: string) => Promise<void>;
 }
 
-export function ProductsTable({ products, loading }: Props) {
+export function ProductsTable({ products, loading, onDelete, isTrash, onRestore }: Props) {
   if (loading && products.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -27,7 +30,6 @@ export function ProductsTable({ products, loading }: Props) {
               <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Dimensions</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Prix unit.</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Prix gros</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Stock</th>
               <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Statut</th>
               <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
             </tr>
@@ -35,12 +37,12 @@ export function ProductsTable({ products, loading }: Props) {
           <tbody>
             {products.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                   Aucun produit trouvé
                 </td>
               </tr>
             ) : (
-              products.map((product) => <ProductTableRow key={product.id} product={product} />)
+              products.map((product) => <ProductTableRow key={product.id} product={product} onDelete={onDelete} isTrash={isTrash} onRestore={onRestore} />)
             )}
           </tbody>
         </table>

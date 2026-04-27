@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, RefreshCw, AlertCircle, Package, Tags } from 'lucide-react';
+import { Plus, RefreshCw, AlertCircle, Package, Tags, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ProductStatus } from '@/core/types';
 import { useProductsStore } from '@/features/products/store/products.store';
@@ -9,12 +9,12 @@ import { ProductsFilters } from './components/ProductsFilters';
 import { ProductsTable } from './components/ProductsTable';
 import { CategoriesManager } from './components/CategoriesManager';
 
-type TabKey = 'products' | 'categories';
+type TabKey = 'products' | 'trash' | 'categories';
 
 export default function ProductsListPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabKey>('products');
-  const { products, total, filters, loading, error, setFilters, fetchProducts, clearError } =
+  const { products, total, filters, loading, error, setFilters, fetchProducts, deleteProduct, restoreProduct, clearError } =
     useProductsStore();
   const { categories, fetchCategories, loading: categoriesLoading } = useCategoriesStore();
 
@@ -24,9 +24,17 @@ export default function ProductsListPage() {
 
   useEffect(() => {
     if (activeTab === 'products') {
+      setFilters({ deletedOnly: false });
+    } else if (activeTab === 'trash') {
+      setFilters({ deletedOnly: true });
+    }
+  }, [activeTab, setFilters]);
+
+  useEffect(() => {
+    if (activeTab === 'products' || activeTab === 'trash') {
       fetchProducts();
     }
-  }, [fetchProducts, filters.categorySlug, filters.status, filters.page, activeTab]);
+  }, [fetchProducts, filters.categorySlug, filters.status, filters.deletedOnly, filters.page, activeTab]);
 
   return (
     <div>
@@ -35,7 +43,7 @@ export default function ProductsListPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Catalogue</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {activeTab === 'products' ? `${total} produit(s)` : `${categories.length} catégorie(s)`}
+            {activeTab === 'products' ? `${total} produit(s)` : activeTab === 'trash' ? `${total} dans la corbeille` : `${categories.length} catégorie(s)`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -55,6 +63,9 @@ export default function ProductsListPage() {
               <Plus size={16} /> Nouveau produit
             </button>
           )}
+          {activeTab === 'trash' && products.length > 0 && (
+            <span className="text-xs text-gray-400 italic">Les produits dans la corbeille peuvent être restaurés</span>
+          )}
         </div>
       </div>
 
@@ -71,6 +82,18 @@ export default function ProductsListPage() {
         >
           <Package size={16} />
           Produits
+        </button>
+        <button
+          onClick={() => setActiveTab('trash')}
+          className={cn(
+            'inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+            activeTab === 'trash'
+              ? 'border-red-500 text-red-500'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          )}
+        >
+          <Trash2 size={16} />
+          Corbeille
         </button>
         <button
           onClick={() => setActiveTab('categories')}
@@ -112,7 +135,21 @@ export default function ProductsListPage() {
           />
 
           {/* Table */}
-          <ProductsTable products={products} loading={loading} />
+          <ProductsTable products={products} loading={loading} onDelete={deleteProduct} />
+        </>
+      )}
+
+      {/* Trash Tab */}
+      {activeTab === 'trash' && (
+        <>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+              <AlertCircle size={16} />
+              <span className="text-sm">{error}</span>
+              <button onClick={clearError} className="ml-auto text-red-500 hover:text-red-700">×</button>
+            </div>
+          )}
+          <ProductsTable products={products} loading={loading} onDelete={deleteProduct} isTrash onRestore={restoreProduct} />
         </>
       )}
 
