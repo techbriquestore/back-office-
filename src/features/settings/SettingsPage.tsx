@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Users, CreditCard, Truck, FileText, Bell, ClipboardList,
   Shield, Plus, Edit, ToggleLeft, ToggleRight, Lock,
@@ -6,46 +6,10 @@ import {
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/core/utils/formatters';
 import { ROLE_LABELS } from '@/core/types';
-import type { Role } from '@/core/types';
+import { usersApi, type BackofficeUser } from '@/core/api/users.api';
+import { auditApi, type AuditLog } from '@/core/api/audit.api';
 
 type Tab = 'users' | 'payments' | 'delivery' | 'invoicing' | 'notifications' | 'preorders' | 'audit';
-
-interface StaffUser {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: Role;
-  status: 'ACTIVE' | 'SUSPENDED';
-  lastLogin?: string;
-}
-
-const MOCK_STAFF: StaffUser[] = [
-  { id: '1', firstName: 'Super', lastName: 'Admin', email: 'admin@briques.store', role: 'SUPER_ADMIN', status: 'ACTIVE', lastLogin: '2026-03-05T09:00:00Z' },
-  { id: '2', firstName: 'Konan', lastName: 'Marc', email: 'marc.konan@briques.store', role: 'COMMERCIAL_LOGISTICS', status: 'ACTIVE', lastLogin: '2026-03-05T08:30:00Z' },
-  { id: '3', firstName: 'Marie', lastName: 'Kouadio', email: 'marie.k@briques.store', role: 'SERVICE_CLIENT', status: 'ACTIVE', lastLogin: '2026-03-05T07:45:00Z' },
-  { id: '4', firstName: 'Jean', lastName: 'Patel', email: 'jean.p@briques.store', role: 'SERVICE_CLIENT', status: 'SUSPENDED' },
-  { id: '5', firstName: 'Aminata', lastName: 'Diallo', email: 'aminata.d@briques.store', role: 'ADMIN', status: 'ACTIVE', lastLogin: '2026-03-04T16:00:00Z' },
-];
-
-interface AuditRow {
-  id: string;
-  userName: string;
-  action: string;
-  entity: string;
-  details: string;
-  ipAddress: string;
-  createdAt: string;
-}
-
-const MOCK_AUDIT: AuditRow[] = [
-  { id: '1', userName: 'Super Admin', action: 'BACKOFFICE_LOGIN', entity: 'User', details: 'Connexion réussie', ipAddress: '192.168.1.10', createdAt: '2026-03-05T09:00:00Z' },
-  { id: '2', userName: 'Konan Marc', action: 'ORDER_VALIDATE', entity: 'Order', details: 'CMD-2026-00567 validée', ipAddress: '192.168.1.15', createdAt: '2026-03-05T08:45:00Z' },
-  { id: '3', userName: 'Marie Kouadio', action: 'CLAIM_ASSIGN', entity: 'Claim', details: 'REC-2026-0043 auto-assignée', ipAddress: '192.168.1.20', createdAt: '2026-03-05T08:30:00Z' },
-  { id: '4', userName: 'Konan Marc', action: 'STOCK_ENTRY', entity: 'Inventory', details: 'BP-20 : +5000 unités (Réception fabrication)', ipAddress: '192.168.1.15', createdAt: '2026-03-05T08:15:00Z' },
-  { id: '5', userName: 'Super Admin', action: 'STAFF_CREATE', entity: 'User', details: 'Nouveau compte : aminata.d@briques.store (ADMIN)', ipAddress: '192.168.1.10', createdAt: '2026-03-04T16:00:00Z' },
-  { id: '6', userName: 'Konan Marc', action: 'DRIVER_ASSIGN', entity: 'Order', details: 'CMD-2026-00564 → Koné Ibrahim', ipAddress: '192.168.1.15', createdAt: '2026-03-04T14:00:00Z' },
-];
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'users', label: 'Utilisateurs', icon: <Users size={16} /> },
@@ -77,6 +41,48 @@ function ToggleSwitch({ enabled }: { enabled: boolean }) {
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('users');
+  const [users, setUsers] = useState<BackofficeUser[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Charger les utilisateurs
+  useEffect(() => {
+    const loadUsers = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await usersApi.getAll();
+        setUsers(response.data);
+      } catch (err) {
+        setError('Erreur lors du chargement des utilisateurs');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUsers();
+  }, []);
+
+  // Charger les logs d'audit
+  useEffect(() => {
+    const loadAuditLogs = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await auditApi.getAll({ limit: 50 });
+        setAuditLogs(response.data);
+      } catch (err) {
+        setError('Erreur lors du chargement des logs d\'audit');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAuditLogs();
+  }, []);
 
   return (
     <div>
@@ -130,44 +136,64 @@ export default function SettingsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {MOCK_STAFF.map((u) => (
-                      <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-[#FF8C00] flex items-center justify-center text-white text-xs font-bold">
-                              {u.firstName[0]}{u.lastName[0]}
-                            </div>
-                            <span className="text-sm font-medium text-gray-900">{u.firstName} {u.lastName}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{u.email}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded">
-                            {ROLE_LABELS[u.role]}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={cn('inline-flex px-2.5 py-1 rounded-full text-xs font-semibold',
-                            u.status === 'ACTIVE' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700',
-                          )}>
-                            {u.status === 'ACTIVE' ? 'Actif' : 'Suspendu'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-500">
-                          {u.lastLogin ? formatDateTime(u.lastLogin) : 'Jamais'}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500" title="Modifier">
-                              <Edit size={16} />
-                            </button>
-                            <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500" title="Reset password">
-                              <Lock size={16} />
-                            </button>
-                          </div>
+                    {loading && activeTab === 'users' ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          Chargement...
                         </td>
                       </tr>
-                    ))}
+                    ) : error && activeTab === 'users' ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-red-500">
+                          {error}
+                        </td>
+                      </tr>
+                    ) : users.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          Aucun utilisateur
+                        </td>
+                      </tr>
+                    ) : (
+                      users.map((u) => (
+                        <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-[#FF8C00] flex items-center justify-center text-white text-xs font-bold">
+                                {u.firstName[0]}{u.lastName[0]}
+                              </div>
+                              <span className="text-sm font-medium text-gray-900">{u.firstName} {u.lastName}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{u.email}</td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded">
+                              {ROLE_LABELS[u.role as keyof typeof ROLE_LABELS]}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={cn('inline-flex px-2.5 py-1 rounded-full text-xs font-semibold',
+                              u.status === 'ACTIVE' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700',
+                            )}>
+                              {u.status === 'ACTIVE' ? 'Actif' : 'Suspendu'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">
+                            {u.updatedAt ? formatDateTime(u.updatedAt) : 'Jamais'}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500" title="Modifier">
+                                <Edit size={16} />
+                              </button>
+                              <button className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500" title="Reset password">
+                                <Lock size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -303,17 +329,41 @@ export default function SettingsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {MOCK_AUDIT.map((log) => (
-                      <tr key={log.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                        <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(log.createdAt)}</td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{log.userName}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-mono bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{log.action}</span>
+                    {loading && activeTab === 'audit' ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                          Chargement...
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{log.details}</td>
-                        <td className="px-4 py-3 text-xs text-gray-400 font-mono">{log.ipAddress}</td>
                       </tr>
-                    ))}
+                    ) : error && activeTab === 'audit' ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-red-500">
+                          {error}
+                        </td>
+                      </tr>
+                    ) : auditLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                          Aucun log d'audit
+                        </td>
+                      </tr>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <tr key={log.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                          <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(log.createdAt)}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                            {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Système'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs font-mono bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{log.action}</span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700">
+                            {typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-400 font-mono">{log.ipAddress || '-'}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -11,7 +11,7 @@ const MODULE_ACCESS: Record<string, Role[]> = {
   customers:   ['SUPER_ADMIN', 'ADMIN', 'COMMERCIAL_LOGISTICS', 'SERVICE_CLIENT'],
   claims:      ['SUPER_ADMIN', 'ADMIN', 'COMMERCIAL_LOGISTICS', 'SERVICE_CLIENT'],
   reports:     ['SUPER_ADMIN', 'ADMIN', 'COMMERCIAL_LOGISTICS'],
-  settings:    ['SUPER_ADMIN'],
+  settings:    ['SUPER_ADMIN', 'ADMIN'],
 };
 
 export function hasModuleAccess(role: Role, module: string): boolean {
