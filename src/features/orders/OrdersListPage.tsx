@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Download, Eye, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, Filter, Download, Eye, ChevronLeft, ChevronRight, Loader2, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/core/stores/auth.store';
 import { formatCFA, formatDateTime } from '@/core/utils/formatters';
@@ -10,13 +10,29 @@ import {
   PAYMENT_METHOD_LABELS,
 } from '@/core/types';
 import type { OrderStatus } from '@/core/types';
-import { ordersApiService, type Order } from './services/orders-api.service';
+import { ordersApiService, type Order, type Payment } from './services/orders-api.service';
+import { preordersAdminApi, type Preorder } from '../preorders/services/preorders-admin-api.service';
 
-type Tab = 'all' | OrderStatus;
+type Tab = 'all' | 'TO_VALIDATE' | OrderStatus;
+
+// Item unifié pour l'onglet "À valider"
+interface ValidationItem {
+  id: string;
+  type: 'preorder' | 'order';
+  orderNumber?: string;
+  customerName: string;
+  customerPhone?: string;
+  totalAmount: number;
+  paidAmount: number;
+  createdAt: string;
+  status: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+}
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'all', label: 'Toutes' },
-  { key: 'PENDING_VALIDATION', label: 'À valider' },
+  { key: 'TO_VALIDATE', label: 'À valider' },
   { key: 'VALIDATED', label: 'Validées' },
   { key: 'IN_PREPARATION', label: 'En fabrication' },
   { key: 'SHIPPED', label: 'Expédiées' },
@@ -45,15 +61,98 @@ export default function OrdersListPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [validationItems, setValidationItems] = useState<ValidationItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [validationCount, setValidationCount] = useState(0);
   const pageSize = 20;
 
+  // Transform API order to match existing Order type
+  function transformApiOrder(apiOrder: Order): Order & { customerName: string; customerPhone?: string; customerType: string; paymentMethod?: string; paymentStatus?: string } {
+    const firstPayment = apiOrder.payments?.[0];
+    return {
+      ...apiOrder,
+      customerName: apiOrder.user ? `${apiOrder.user.firstName} ${apiOrder.user.lastName}` : 'Inconnu',
+      customerPhone: apiOrder.user?.phone,
+      customerType: 'PARTICULIER',
+      paymentMethod: firstPayment?.method,
+      paymentStatus: firstPayment?.status,
+    };
+  }
+
+  // Charger les données pour l'onglet "À valider" (commandes + précommandes)
+  const loadValidationItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const items: ValidationItem[] = [];
+
+      // Charger les commandes PENDING_VALIDATION
+      const ordersResponse = await ordersApiService.getOrders({ status: 'PENDING_VALIDATION' });
+      ordersResponse.data.forEach((o: Order) => {
+        const paidAmount = o.payments?.filter((p: Payment) => p.status === 'CONFIRMED').reduce((sum: number, p: Payment) => sum + p.amount, 0) || 0;
+        items.push({
+          id: o.id,
+          type: 'order',
+          orderNumber: o.orderNumber,
+          customerName: `${o.user?.firstName || ''} ${o.user?.lastName || ''}`.trim() || 'Client',
+          customerPhone: o.user?.phone,
+          totalAmount: o.totalAmount || 0,
+          paidAmount,
+          createdAt: o.createdAt,
+          status: o.status,
+          paymentMethod: o.payments?.[0]?.method,
+          paymentStatus: o.payments?.[0]?.status,
+        });
+      });
+
+      // Charger les précommandes COMPLETED (toutes échéances payées)
+      const preordersResponse = await preordersAdminApi.getPreorders({ status: 'COMPLETED' });
+      preordersResponse.data.forEach((p: Preorder) => {
+        const paidSchedules = p.schedules?.filter(s => s.status === 'PAID') || [];
+        const paidAmount = paidSchedules.reduce((sum, s) => sum + s.amount, 0);
+        items.push({
+          id: p.id,
+          type: 'preorder',
+          customerName: `${p.user.firstName} ${p.user.lastName}`,
+          customerPhone: p.user.phone,
+          totalAmount: p.totalAmount,
+          paidAmount,
+          createdAt: p.createdAt,
+          status: 'COMPLETED',
+        });
+      });
+
+      // Filtrer par recherche
+      let filtered = items;
+      if (search) {
+        const s = search.toLowerCase();
+        filtered = items.filter(item =>
+          item.customerName.toLowerCase().includes(s) ||
+          (item.orderNumber && item.orderNumber.toLowerCase().includes(s)) ||
+          (item.customerPhone && item.customerPhone.includes(s))
+        );
+      }
+
+      // Trier par date (plus récent en premier)
+      filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      setValidationItems(filtered);
+      setValidationCount(items.length);
+      setTotal(filtered.length);
+    } catch (error) {
+      console.error('Error loading validation items:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
+
+  // Charger les commandes normales
   const loadOrders = useCallback(async () => {
     setLoading(true);
     try {
+      const statusFilter = activeTab === 'TO_VALIDATE' ? 'PENDING_VALIDATION' : (activeTab !== 'all' ? activeTab : undefined);
       const response = await ordersApiService.getOrders({
         search: search || undefined,
-        status: activeTab !== 'all' ? activeTab : undefined,
+        status: statusFilter,
         page,
         pageSize,
         sortBy: 'createdAt',
@@ -61,20 +160,6 @@ export default function OrdersListPage() {
       });
       setOrders(response.data.map(transformApiOrder));
       setTotal(response.total);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-      console.log(response);
-
     } catch (error) {
       console.error('Error loading orders:', error);
     } finally {
@@ -83,27 +168,14 @@ export default function OrdersListPage() {
   }, [activeTab, search, page]);
 
   useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+    if (activeTab === 'TO_VALIDATE') {
+      loadValidationItems();
+    } else {
+      loadOrders();
+    }
+  }, [activeTab, loadOrders, loadValidationItems]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  const pendingCount = orders.filter((o) => o.status === 'PENDING_VALIDATION').length;
-
-  // Transform API order to match existing Order type
-  function transformApiOrder(apiOrder: Order): any {
-    const firstPayment = apiOrder.payments?.[0];
-    return {
-      ...apiOrder,
-      customerName: apiOrder.user ? `${apiOrder.user.firstName} ${apiOrder.user.lastName}` : 'Inconnu',
-      customerPhone: apiOrder.user?.phone,
-      customerEmail: apiOrder.user?.email,
-      customerType: 'PARTICULIER', // TODO: get from user.clientType
-      paymentMethod: firstPayment?.method,
-      paymentStatus: firstPayment?.status,
-      driverName: apiOrder.driver?.user ? `${apiOrder.driver.user.firstName} ${apiOrder.driver.user.lastName}` : undefined,
-    };
-  }
 
   return (
     <div>
@@ -130,9 +202,9 @@ export default function OrdersListPage() {
             )}
           >
             {tab.label}
-            {tab.key === 'PENDING_VALIDATION' && pendingCount > 0 && (
+            {tab.key === 'TO_VALIDATE' && validationCount > 0 && (
               <span className="ml-1.5 bg-white/20 text-white px-1.5 py-0.5 rounded-full text-xs">
-                {pendingCount}
+                {validationCount}
               </span>
             )}
           </button>
@@ -198,7 +270,84 @@ export default function OrdersListPage() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="animate-spin text-[#FF8C00]" size={32} />
         </div>
+      ) : activeTab === 'TO_VALIDATE' ? (
+        /* Table pour l'onglet À valider (commandes + précommandes) */
+        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Client</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Montant</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Payé</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {validationItems.map((item) => (
+                  <tr 
+                    key={`${item.type}-${item.id}`} 
+                    className="border-b border-gray-50 hover:bg-orange-50/30 cursor-pointer transition-colors"
+                    onClick={() => navigate(item.type === 'preorder' ? `/admin/preorders/${item.id}` : `/admin/orders/${item.id}`)}
+                  >
+                    <td className="px-4 py-3">
+                      {item.type === 'preorder' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700">
+                          <Calendar size={12} />
+                          Précommande
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700">
+                          Commande
+                        </span>
+                      )}
+                      {item.orderNumber && (
+                        <p className="text-xs text-gray-500 font-mono mt-1">#{item.orderNumber}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium text-gray-900">{item.customerName}</p>
+                      <p className="text-xs text-gray-400">{item.customerPhone || ''}</p>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <p className="text-sm font-semibold text-gray-900">{formatCFA(item.totalAmount)}</p>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <p className="text-sm font-medium text-green-600">{formatCFA(item.paidAmount)}</p>
+                      <p className="text-xs text-gray-400">
+                        {item.totalAmount > 0 ? Math.round((item.paidAmount / item.totalAmount) * 100) : 0}%
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(item.createdAt)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(item.type === 'preorder' ? `/admin/preorders/${item.id}` : `/admin/orders/${item.id}`);
+                        }}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-[#FF8C00] text-white rounded-lg hover:bg-[#E67E00] transition-colors"
+                      >
+                        <Eye size={14} />
+                        {item.type === 'preorder' ? 'Convertir' : 'Valider'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {validationItems.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center text-gray-400 text-sm">
+                      Aucun élément en attente de validation
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* Table normale pour les autres onglets */
         <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -215,7 +364,7 @@ export default function OrdersListPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order: any) => (
+                {orders.map((order) => (
                   <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3">
                       <span className="text-sm font-semibold text-gray-900">{order.orderNumber}</span>
@@ -223,12 +372,8 @@ export default function OrdersListPage() {
                     <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(order.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">{order.customerName}</span>
-                        <span className={cn(
-                          'text-[10px] font-bold px-1.5 py-0.5 rounded',
-                          order.customerType === 'PROFESSIONNEL' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600',
-                        )}>
-                          {order.customerType === 'PROFESSIONNEL' ? 'PRO' : 'PART'}
+                        <span className="text-sm font-medium text-gray-900">
+                          {order.user ? `${order.user.firstName} ${order.user.lastName}` : 'Inconnu'}
                         </span>
                       </div>
                     </td>
@@ -236,11 +381,11 @@ export default function OrdersListPage() {
                       <span className="text-sm font-semibold text-gray-900">{formatCFA(order.totalAmount)}</span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
-                      {order.paymentMethod ? PAYMENT_METHOD_LABELS[order.paymentMethod as keyof typeof PAYMENT_METHOD_LABELS] : '—'}
+                      {order.payments?.[0]?.method ? PAYMENT_METHOD_LABELS[order.payments[0].method as keyof typeof PAYMENT_METHOD_LABELS] : '—'}
                     </td>
                     <td className="px-4 py-3">
-                      {order.paymentStatus ? (
-                        <StatusBadge status={order.paymentStatus} labels={PAYMENT_STATUS_LABELS as Record<string, string>} colors={PAYMENT_STATUS_COLORS as Record<string, string>} />
+                      {order.payments?.[0]?.status ? (
+                        <StatusBadge status={order.payments[0].status} labels={PAYMENT_STATUS_LABELS as Record<string, string>} colors={PAYMENT_STATUS_COLORS as Record<string, string>} />
                       ) : '—'}
                     </td>
                     <td className="px-4 py-3">
@@ -293,14 +438,11 @@ export default function OrdersListPage() {
       )}
 
       {/* Quick action for pending validation */}
-      {user?.role !== 'SERVICE_CLIENT' && pendingCount > 0 && activeTab === 'PENDING_VALIDATION' && (
+      {user?.role !== 'SERVICE_CLIENT' && validationCount > 0 && activeTab === 'TO_VALIDATE' && (
         <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl flex items-center justify-between">
           <p className="text-sm text-orange-800 font-medium">
-            {pendingCount} commande(s) en attente de validation
+            {validationCount} élément(s) en attente de validation
           </p>
-          <button className="px-4 py-2 bg-[#FF8C00] text-white text-sm font-medium rounded-lg hover:bg-[#E67E00] transition-colors">
-            Tout valider
-          </button>
         </div>
       )}
     </div>

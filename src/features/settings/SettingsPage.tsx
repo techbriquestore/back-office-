@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import {
   Users, CreditCard, Truck, FileText, Bell, ClipboardList,
-  Shield, Plus, Edit, ToggleLeft, ToggleRight, Lock,
+  Shield, Plus, Edit, ToggleLeft, ToggleRight, Lock, Save, CheckCircle, AlertTriangle, Building2, Phone, Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDateTime } from '@/core/utils/formatters';
 import { ROLE_LABELS } from '@/core/types';
 import { usersApi, type BackofficeUser } from '@/core/api/users.api';
 import { auditApi, type AuditLog } from '@/core/api/audit.api';
+import { issuerProfileApi, type IssuerProfile, type CreateIssuerProfileDto } from '@/core/api/issuer-profile.api';
 
 type Tab = 'users' | 'payments' | 'delivery' | 'invoicing' | 'notifications' | 'preorders' | 'audit';
 
@@ -39,12 +40,51 @@ function ToggleSwitch({ enabled }: { enabled: boolean }) {
     : <ToggleLeft size={28} className="text-gray-300 cursor-pointer" />;
 }
 
+const JURIDICAL_FORMS = ['SARL', 'SA', 'SAS', 'SNC', 'EURL', 'GIE', 'Association'];
+const FISCAL_REGIMES = ['Réel Normal', 'Réel Simplifié', 'Forfait', 'Synthétique'];
+
+interface IssuerFormData {
+  raisonSociale: string;
+  formeJuridique: string;
+  capitalSocial: string;
+  siegeSocial: string;
+  rccm: string;
+  ncc: string;
+  idu: string;
+  regimeFiscal: string;
+  telephone: string;
+  email: string;
+  logoUrl: string;
+}
+
+const initialIssuerForm: IssuerFormData = {
+  raisonSociale: '',
+  formeJuridique: '',
+  capitalSocial: '',
+  siegeSocial: '',
+  rccm: '',
+  ncc: '',
+  idu: '',
+  regimeFiscal: '',
+  telephone: '',
+  email: '',
+  logoUrl: '',
+};
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('users');
   const [users, setUsers] = useState<BackofficeUser[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // État pour le profil émetteur
+  const [issuerProfile, setIssuerProfile] = useState<IssuerProfile | null>(null);
+  const [issuerForm, setIssuerForm] = useState<IssuerFormData>(initialIssuerForm);
+  const [issuerLoading, setIssuerLoading] = useState(false);
+  const [issuerSaving, setIssuerSaving] = useState(false);
+  const [issuerSuccess, setIssuerSuccess] = useState(false);
+  const [issuerError, setIssuerError] = useState<string | null>(null);
 
   // Charger les utilisateurs
   useEffect(() => {
@@ -83,6 +123,80 @@ export default function SettingsPage() {
 
     loadAuditLogs();
   }, []);
+
+  // Charger le profil émetteur
+  useEffect(() => {
+    const loadIssuerProfile = async () => {
+      setIssuerLoading(true);
+      setIssuerError(null);
+      try {
+        const response = await issuerProfileApi.getActive();
+        const profile = response.data;
+        setIssuerProfile(profile);
+        setIssuerForm({
+          raisonSociale: profile.raisonSociale || '',
+          formeJuridique: profile.formeJuridique || '',
+          capitalSocial: profile.capitalSocial?.toString() || '',
+          siegeSocial: profile.siegeSocial || '',
+          rccm: profile.rccm || '',
+          ncc: profile.ncc || '',
+          idu: profile.idu || '',
+          regimeFiscal: profile.regimeFiscal || '',
+          telephone: profile.telephone || '',
+          email: profile.email || '',
+          logoUrl: profile.logoUrl || '',
+        });
+      } catch (err) {
+        console.error('Erreur chargement profil émetteur:', err);
+        // Si pas de profil, on garde les valeurs par défaut
+      } finally {
+        setIssuerLoading(false);
+      }
+    };
+
+    if (activeTab === 'invoicing') {
+      loadIssuerProfile();
+    }
+  }, [activeTab]);
+
+  // Sauvegarder le profil émetteur
+  const handleSaveIssuerProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIssuerSaving(true);
+    setIssuerSuccess(false);
+    setIssuerError(null);
+
+    try {
+      const dto: CreateIssuerProfileDto = {
+        raisonSociale: issuerForm.raisonSociale,
+        formeJuridique: issuerForm.formeJuridique,
+        capitalSocial: parseInt(issuerForm.capitalSocial, 10) || 0,
+        siegeSocial: issuerForm.siegeSocial,
+        rccm: issuerForm.rccm,
+        ncc: issuerForm.ncc,
+        idu: issuerForm.idu,
+        regimeFiscal: issuerForm.regimeFiscal,
+        telephone: issuerForm.telephone,
+        email: issuerForm.email,
+        logoUrl: issuerForm.logoUrl || undefined,
+      };
+
+      const response = await issuerProfileApi.update(dto);
+      setIssuerProfile(response.data);
+      setIssuerSuccess(true);
+      setTimeout(() => setIssuerSuccess(false), 3000);
+    } catch (err) {
+      console.error('Erreur sauvegarde profil émetteur:', err);
+      setIssuerError('Erreur lors de la sauvegarde du profil émetteur');
+    } finally {
+      setIssuerSaving(false);
+    }
+  };
+
+  const formatCFA = (amount: string) => {
+    const num = parseInt(amount, 10);
+    return isNaN(num) ? '0 FCFA' : new Intl.NumberFormat('fr-FR').format(num) + ' FCFA';
+  };
 
   return (
     <div>
@@ -247,25 +361,299 @@ export default function SettingsPage() {
           {/* Invoicing Config */}
           {activeTab === 'invoicing' && (
             <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-5">Configuration de la facturation</h2>
-              <SettingCard label="Nom de la société">
-                <span className="text-sm font-semibold text-gray-900">BRIQUES.STORE SARL</span>
-              </SettingCard>
-              <SettingCard label="RCCM">
-                <span className="text-sm font-semibold text-gray-900">CI-ABJ-2024-B-12345</span>
-              </SettingCard>
-              <SettingCard label="Numéro CC">
-                <span className="text-sm font-semibold text-gray-900">2024567890 A</span>
-              </SettingCard>
-              <SettingCard label="Taux TVA">
-                <span className="text-sm font-semibold text-gray-900">18%</span>
-              </SettingCard>
-              <SettingCard label="Préfixe factures">
-                <span className="text-sm font-semibold text-gray-900">FACT-{new Date().getFullYear()}-</span>
-              </SettingCard>
-              <SettingCard label="Durée d'archivage">
-                <span className="text-sm font-semibold text-gray-900">10 ans (DGI)</span>
-              </SettingCard>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Profil Émetteur</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">Informations légales de l'entreprise (DGI Côte d'Ivoire)</p>
+                </div>
+                {issuerProfile && (
+                  <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full font-medium">
+                    Version {issuerProfile.version}
+                  </span>
+                )}
+              </div>
+
+              {/* DGI compliance badge */}
+              <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-100 rounded-lg mb-6 text-xs">
+                <CheckCircle size={16} className="text-green-600 flex-shrink-0" />
+                <span className="text-green-700 font-medium">
+                  Profil émetteur conforme aux exigences DGI — RCCM, NCC, IDU obligatoires — Versionning automatique
+                </span>
+              </div>
+
+              {/* Success message */}
+              {issuerSuccess && (
+                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg mb-6 text-sm">
+                  <CheckCircle size={16} className="text-green-600 flex-shrink-0" />
+                  <span className="text-green-700 font-medium">Profil mis à jour avec succès !</span>
+                </div>
+              )}
+
+              {/* Error message */}
+              {issuerError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-6 text-sm">
+                  <AlertTriangle size={16} className="text-red-600 flex-shrink-0" />
+                  <span className="text-red-700 font-medium">{issuerError}</span>
+                </div>
+              )}
+
+              {issuerLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-gray-500">Chargement...</div>
+                </div>
+              ) : (
+                <form onSubmit={handleSaveIssuerProfile}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* Raison sociale */}
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Raison sociale <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Building2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          value={issuerForm.raisonSociale}
+                          onChange={(e) => setIssuerForm({ ...issuerForm, raisonSociale: e.target.value })}
+                          className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none"
+                          placeholder="Ex: AXIMO BTP"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Forme juridique */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Forme juridique <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={issuerForm.formeJuridique}
+                        onChange={(e) => setIssuerForm({ ...issuerForm, formeJuridique: e.target.value })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none"
+                        required
+                      >
+                        <option value="">Sélectionner...</option>
+                        {JURIDICAL_FORMS.map((form) => (
+                          <option key={form} value={form}>{form}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Capital social */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Capital social (FCFA) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={issuerForm.capitalSocial}
+                        onChange={(e) => setIssuerForm({ ...issuerForm, capitalSocial: e.target.value.replace(/\D/g, '') })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none"
+                        placeholder="Ex: 10000000"
+                        required
+                      />
+                      {issuerForm.capitalSocial && (
+                        <p className="text-xs text-gray-500 mt-1">{formatCFA(issuerForm.capitalSocial)}</p>
+                      )}
+                    </div>
+
+                    {/* Siège social */}
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Siège social <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={issuerForm.siegeSocial}
+                        onChange={(e) => setIssuerForm({ ...issuerForm, siegeSocial: e.target.value })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none resize-none"
+                        rows={2}
+                        placeholder="Ex: Abidjan, Côte d'Ivoire"
+                        required
+                      />
+                    </div>
+
+                    {/* RCCM */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        RCCM <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={issuerForm.rccm}
+                        onChange={(e) => setIssuerForm({ ...issuerForm, rccm: e.target.value.toUpperCase() })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none uppercase"
+                        placeholder="Ex: CI-ABJ-2024-B-12345"
+                        required
+                      />
+                    </div>
+
+                    {/* NCC */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        NCC <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={issuerForm.ncc}
+                        onChange={(e) => setIssuerForm({ ...issuerForm, ncc: e.target.value.toUpperCase() })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none uppercase"
+                        placeholder="Ex: 1234567A"
+                        required
+                      />
+                    </div>
+
+                    {/* IDU */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        IDU <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={issuerForm.idu}
+                        onChange={(e) => setIssuerForm({ ...issuerForm, idu: e.target.value.toUpperCase() })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none uppercase"
+                        placeholder="Ex: CI-2024-0001234"
+                        required
+                      />
+                    </div>
+
+                    {/* Régime fiscal */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Régime fiscal <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={issuerForm.regimeFiscal}
+                        onChange={(e) => setIssuerForm({ ...issuerForm, regimeFiscal: e.target.value })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none"
+                        required
+                      >
+                        <option value="">Sélectionner...</option>
+                        {FISCAL_REGIMES.map((regime) => (
+                          <option key={regime} value={regime}>{regime}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Téléphone */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Téléphone <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="tel"
+                          value={issuerForm.telephone}
+                          onChange={(e) => setIssuerForm({ ...issuerForm, telephone: e.target.value })}
+                          className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none"
+                          placeholder="Ex: +225 07 00 00 00 00"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="email"
+                          value={issuerForm.email}
+                          onChange={(e) => setIssuerForm({ ...issuerForm, email: e.target.value })}
+                          className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none"
+                          placeholder="Ex: contact@aximo-btp.ci"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Logo URL */}
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        URL du logo (optionnel)
+                      </label>
+                      <input
+                        type="url"
+                        value={issuerForm.logoUrl}
+                        onChange={(e) => setIssuerForm({ ...issuerForm, logoUrl: e.target.value })}
+                        className="w-full px-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#FF8C00] focus:border-[#FF8C00] outline-none"
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Warning */}
+                  <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mt-6 text-xs">
+                    <AlertTriangle size={14} className="text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <span className="text-yellow-700">
+                      <strong>Important :</strong> Chaque modification crée une nouvelle version du profil. Les factures existantes conservent leur version d'origine.
+                    </span>
+                  </div>
+
+                  {/* Fixed settings */}
+                  <div className="mt-6 pt-6 border-t border-gray-100">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4">Paramètres fixes (DGI)</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-500">Taux TVA</p>
+                        <p className="text-sm font-semibold text-gray-900">18%</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-500">Préfixe factures</p>
+                        <p className="text-sm font-semibold text-gray-900">FACT-{new Date().getFullYear()}-</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-500">Durée d'archivage</p>
+                        <p className="text-sm font-semibold text-gray-900">10 ans</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-500">Hash de sécurité</p>
+                        <p className="text-sm font-semibold text-gray-900">SHA-256</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (issuerProfile) {
+                          setIssuerForm({
+                            raisonSociale: issuerProfile.raisonSociale || '',
+                            formeJuridique: issuerProfile.formeJuridique || '',
+                            capitalSocial: issuerProfile.capitalSocial?.toString() || '',
+                            siegeSocial: issuerProfile.siegeSocial || '',
+                            rccm: issuerProfile.rccm || '',
+                            ncc: issuerProfile.ncc || '',
+                            idu: issuerProfile.idu || '',
+                            regimeFiscal: issuerProfile.regimeFiscal || '',
+                            telephone: issuerProfile.telephone || '',
+                            email: issuerProfile.email || '',
+                            logoUrl: issuerProfile.logoUrl || '',
+                          });
+                        }
+                      }}
+                      className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={issuerSaving}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#FF8C00] text-white rounded-lg text-sm font-medium hover:bg-[#e67e00] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Save size={16} />
+                      {issuerSaving ? 'Enregistrement...' : 'Enregistrer'}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
 

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import axios from 'axios';
 import type { AuthUser, Role } from '../types';
-import api from '../api';
+import api, { setAccessToken } from '../api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
@@ -36,8 +36,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Appel API login...');
       const { data } = await api.post('/backoffice/auth/login', { identifier: email, password });
       console.log('Réponse API login:', data);
-      // Stocker l'access token en mémoire (pas localStorage)
-      // Le refresh token et CSRF token sont dans les cookies httpOnly
+      // Stocker l'access token dans le store et dans l'interceptor
+      setAccessToken(data.accessToken);
       set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true, isLoading: false });
       console.log('Store mis à jour avec user:', data.user, 'isAuthenticated: true');
     } catch (err: unknown) {
@@ -56,7 +56,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // ignore
     } finally {
-      // Nettoyer le store (mémoire)
+      // Nettoyer le store et l'interceptor
+      setAccessToken(null);
       set({ user: null, accessToken: null, isAuthenticated: false });
     }
   },
@@ -66,6 +67,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data } = await api.get('/backoffice/auth/profile');
       set({ user: data, isAuthenticated: true });
     } catch {
+      setAccessToken(null);
       set({ user: null, accessToken: null, isAuthenticated: false });
     }
   },
@@ -76,9 +78,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data } = await axios.post(`${API_BASE_URL}/backoffice/auth/refresh`, {}, {
         withCredentials: true,
       });
-      // Stocker l'access token en mémoire
+      // Stocker l'access token dans le store et l'interceptor
+      setAccessToken(data.accessToken);
       set({ user: data.user, accessToken: data.accessToken, isAuthenticated: true, isInitialized: true });
     } catch {
+      setAccessToken(null);
       set({ user: null, accessToken: null, isAuthenticated: false, isInitialized: true });
     }
   },

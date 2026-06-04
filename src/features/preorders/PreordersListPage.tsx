@@ -126,7 +126,7 @@ export default function PreordersListPage() {
                         <p className="text-sm font-medium text-gray-900">{row.user.firstName} {row.user.lastName}</p>
                         <p className="text-xs text-gray-400">{row.user.phone || row.user.email}</p>
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">{row.totalQuantity.toLocaleString('fr-FR')}</td>
+                      <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">{(row.totalQuantity ?? 0).toLocaleString('fr-FR')}</td>
                       <td className="px-4 py-3 text-right">
                         <p className="text-sm font-semibold text-gray-900">{formatCFA(row.totalAmount)}</p>
                         <p className="text-xs text-gray-400">Payé : {formatCFA(paidAmount)}</p>

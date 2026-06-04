@@ -298,7 +298,7 @@ export default function OrderDetailPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 text-center text-sm font-medium text-gray-900">{item.quantity.toLocaleString('fr-FR')}</td>
+                    <td className="py-3 text-center text-sm font-medium text-gray-900">{(item.quantity ?? 0).toLocaleString('fr-FR')}</td>
                     <td className="py-3 text-right text-sm text-gray-600">{formatCFA(item.unitPrice)}</td>
                     <td className="py-3 text-right text-sm font-semibold text-gray-900">{formatCFA(item.subtotal)}</td>
                   </tr>

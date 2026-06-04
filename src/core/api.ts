@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { useAuthStore } from './stores/auth.store';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
@@ -8,6 +7,14 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true, // Pour envoyer les cookies httpOnly
 });
+
+// Variable pour stocker le token en mémoire (simple, pas de store)
+let currentAccessToken: string | null = null;
+
+// Fonction pour définir le token depuis l'extérieur
+export const setAccessToken = (token: string | null) => {
+  currentAccessToken = token;
+};
 
 // Fonction utilitaire pour lire un cookie
 const getCookie = (name: string): string | null => {
@@ -21,12 +28,11 @@ const getCookie = (name: string): string | null => {
 
 // Intercepteur : injecter le token JWT et le token CSRF
 api.interceptors.request.use((config) => {
-  // Récupérer l'access token depuis le store Zustand (mémoire)
-  const { accessToken } = useAuthStore.getState();
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+  // Récupérer l'access token depuis la variable en mémoire
+  if (currentAccessToken) {
+    config.headers.Authorization = `Bearer ${currentAccessToken}`;
   }
-  
+
   // Ajouter le header CSRF pour les mutations
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(config.method?.toUpperCase() || '')) {
     const csrfToken = getCookie('bo_csrf_token');
@@ -34,7 +40,7 @@ api.interceptors.request.use((config) => {
       config.headers['X-CSRF-Token'] = csrfToken;
     }
   }
-  
+
   // Désactiver le cache HTTP
   config.headers['Cache-Control'] = 'no-cache';
   config.headers.Pragma = 'no-cache';
@@ -61,14 +67,14 @@ api.interceptors.response.use(
 
         console.log('Refresh réussi:', data);
 
-        // Stocker l'access token dans le store Zustand (mémoire)
-        useAuthStore.getState().refreshSession();
+        // Mettre à jour le token en mémoire
+        currentAccessToken = data.accessToken;
 
         originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
         console.error('Refresh échoué:', refreshError);
-        useAuthStore.getState().logout();
+        currentAccessToken = null;
         window.location.href = '/login';
         return Promise.reject(error);
       }

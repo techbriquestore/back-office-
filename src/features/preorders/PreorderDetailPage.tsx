@@ -253,7 +253,7 @@ export default function PreorderDetailPage() {
               </div>
               <div>
                 <p className="text-xs text-gray-500">Quantité totale</p>
-                <p className="text-sm font-bold text-gray-900">{preorder.totalQuantity.toLocaleString('fr-FR')} unités</p>
+                <p className="text-sm font-bold text-gray-900">{(preorder.totalQuantity ?? 0).toLocaleString('fr-FR')} unités</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Montant total</p>
@@ -400,7 +400,7 @@ export default function PreorderDetailPage() {
                         <td className="px-4 py-3 text-sm font-semibold text-gray-900">Tranche {i + 1}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{formatDate(s.dueDate)}</td>
                         <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCFA(s.amount)}</td>
-                        <td className="px-4 py-3 text-right text-sm text-gray-600">{s.quantity.toLocaleString('fr-FR')}</td>
+                        <td className="px-4 py-3 text-right text-sm text-gray-600">{(s.quantity ?? 0).toLocaleString('fr-FR')}</td>
                         <td className="px-4 py-3 text-center">
                           <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold', cfg.bg, cfg.text)}>
                             {s.status === 'PAID' && <CheckCircle size={12} className="mr-1" />}
