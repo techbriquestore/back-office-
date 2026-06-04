@@ -160,7 +160,7 @@ export default function PreorderDetailPage() {
 
   if (!preorder) return null;
 
-  const statusCfg = PREORDER_STATUS_CONFIG[preorder.status] || PREORDER_STATUS_CONFIG.ACTIVE;
+  const statusCfg = (PREORDER_STATUS_CONFIG[preorder.status] || PREORDER_STATUS_CONFIG.ACTIVE) as { bg: string; text: string; label: string };
   const progress = preorder.totalSchedules > 0
     ? Math.round((preorder.paidSchedules / preorder.totalSchedules) * 100)
     : 0;

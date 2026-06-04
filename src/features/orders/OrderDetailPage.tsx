@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Phone, MessageCircle, Mail, Send,
-  CheckCircle, XCircle, Truck, Clock, FileText,
+  ArrowLeft, Phone, MessageCircle, Mail,
+  CheckCircle, XCircle, Truck, FileText,
   Plus, Loader2, AlertTriangle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/core/stores/auth.store';
 import { hasPermission } from '@/core/permissions';
 import { formatCFA, formatDateTime } from '@/core/utils/formatters';
@@ -390,13 +389,13 @@ export default function OrderDetailPage() {
                   <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                     <div>
                       <p className="text-sm font-medium text-gray-900">{formatCFA(p.amount)}</p>
-                      <p className="text-xs text-gray-500">{PAYMENT_METHOD_LABELS[p.method] || p.method}</p>
+                      <p className="text-xs text-gray-500">{PAYMENT_METHOD_LABELS[p.method as keyof typeof PAYMENT_METHOD_LABELS] || p.method}</p>
                     </div>
                     <span
                       className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
-                      style={{ backgroundColor: `${PAYMENT_STATUS_COLORS[p.status] || '#666'}18`, color: PAYMENT_STATUS_COLORS[p.status] || '#666' }}
+                      style={{ backgroundColor: `${PAYMENT_STATUS_COLORS[p.status as keyof typeof PAYMENT_STATUS_COLORS] || '#666'}18`, color: PAYMENT_STATUS_COLORS[p.status as keyof typeof PAYMENT_STATUS_COLORS] || '#666' }}
                     >
-                      {PAYMENT_STATUS_LABELS[p.status] || p.status}
+                      {PAYMENT_STATUS_LABELS[p.status as keyof typeof PAYMENT_STATUS_LABELS] || p.status}
                     </span>
                   </div>
                 ))}

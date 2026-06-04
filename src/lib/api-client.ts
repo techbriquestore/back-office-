@@ -14,7 +14,7 @@ class ApiClient {
     return useAuthStore.getState().accessToken;
   }
 
-  setToken(token: string) {
+  setToken(_token: string) {
     // Déprécié : le token est maintenant géré par le store
     console.warn('setToken is deprecated, tokens are managed by auth store');
   }

@@ -257,7 +257,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="day" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
-              <Tooltip formatter={(v: number) => formatCFA(v)} />
+              <Tooltip formatter={(v: any) => formatCFA(v)} />
               <Area type="monotone" dataKey="current" stroke="#FF8C00" fill="#FF8C0020" strokeWidth={2} name="Période actuelle" />
               <Area type="monotone" dataKey="previous" stroke="#94a3b8" fill="#94a3b810" strokeWidth={1.5} strokeDasharray="4 4" name="Période précédente" />
             </AreaChart>
@@ -274,7 +274,7 @@ export default function DashboardPage() {
                   <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v: number) => `${v} commandes`} />
+              <Tooltip formatter={(v: any) => `${v} commandes`} />
             </PieChart>
           </ResponsiveContainer>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
@@ -299,7 +299,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
               <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v: number) => `${v.toLocaleString('fr-FR')} unités`} />
+              <Tooltip formatter={(v: any) => `${Number(v).toLocaleString('fr-FR')} unités`} />
               <Bar dataKey="sold" fill="#FF8C00" radius={[0, 4, 4, 0]} barSize={18} />
             </BarChart>
           </ResponsiveContainer>
@@ -315,7 +315,7 @@ export default function DashboardPage() {
                   <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v: number) => `${v}%`} />
+              <Tooltip formatter={(v: any) => `${v}%`} />
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-2 mt-2">
