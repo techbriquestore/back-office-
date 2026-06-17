@@ -53,11 +53,16 @@ export default function PushNotificationsPage() {
           break;
       }
 
-      await apiClient.post(endpoint, payload);
-      setResult({ success: true, message: 'Notification envoyée avec succès' });
-      setTitle('');
-      setBody('');
-      setSelectedUserIds([]);
+      const response = await apiClient.post<{ success: boolean; error?: string }>(endpoint, payload);
+      
+      if (response.data.success) {
+        setResult({ success: true, message: 'Notification envoyée avec succès' });
+        setTitle('');
+        setBody('');
+        setSelectedUserIds([]);
+      } else {
+        setResult({ success: false, message: response.data.error || 'Aucun token actif trouvé - les utilisateurs doivent ouvrir l\'app mobile' });
+      }
     } catch (error: any) {
       setResult({ success: false, message: error.message || 'Erreur lors de l\'envoi' });
     } finally {
