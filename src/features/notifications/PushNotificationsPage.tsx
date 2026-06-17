@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Send, Users, Megaphone, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api-client';
 
 export default function PushNotificationsPage() {
   const [targetType, setTargetType] = useState<'user' | 'users' | 'all' | 'segment'>('all');
@@ -21,7 +22,7 @@ export default function PushNotificationsPage() {
     setResult(null);
 
     try {
-      const endpoint = '/api/v1/push-notifications';
+      let endpoint = '/push-notifications';
       let payload: any = { title, body };
 
       switch (targetType) {
@@ -31,6 +32,7 @@ export default function PushNotificationsPage() {
             setLoading(false);
             return;
           }
+          endpoint += '/send-to-user';
           payload.userId = selectedUserIds[0];
           break;
         case 'users':
@@ -39,34 +41,25 @@ export default function PushNotificationsPage() {
             setLoading(false);
             return;
           }
+          endpoint += '/send-to-users';
           payload.userIds = selectedUserIds;
           break;
         case 'segment':
+          endpoint += '/send-to-segment';
           payload.clientType = clientType;
           break;
         case 'all':
-          // Pas de paramètres supplémentaires
+          endpoint += '/send-to-all';
           break;
       }
 
-      const response = await fetch(`${endpoint}/${targetType === 'user' ? 'send-to-user' : targetType === 'users' ? 'send-to-users' : targetType === 'segment' ? 'send-to-segment' : 'send-to-all'}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setResult({ success: true, message: 'Notification envoyée avec succès' });
-        setTitle('');
-        setBody('');
-        setSelectedUserIds([]);
-      } else {
-        setResult({ success: false, message: data.message || 'Erreur lors de l\'envoi' });
-      }
-    } catch (error) {
-      setResult({ success: false, message: 'Erreur de connexion' });
+      await apiClient.post(endpoint, payload);
+      setResult({ success: true, message: 'Notification envoyée avec succès' });
+      setTitle('');
+      setBody('');
+      setSelectedUserIds([]);
+    } catch (error: any) {
+      setResult({ success: false, message: error.message || 'Erreur lors de l\'envoi' });
     } finally {
       setLoading(false);
     }
