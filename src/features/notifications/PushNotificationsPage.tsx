@@ -1,7 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Send, Users, Megaphone, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
+
+interface Statistics {
+  totalUsers: number;
+  totalTokens: number;
+  particulierUsers: number;
+  professionnelUsers: number;
+  particulierTokens: number;
+  professionnelTokens: number;
+}
 
 export default function PushNotificationsPage() {
   const [targetType, setTargetType] = useState<'user' | 'users' | 'all' | 'segment'>('all');
@@ -11,6 +20,23 @@ export default function PushNotificationsPage() {
   const [clientType, setClientType] = useState<'PARTICULIER' | 'PROFESSIONNEL'>('PARTICULIER');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [statistics, setStatistics] = useState<Statistics | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    fetchStatistics();
+  }, []);
+
+  const fetchStatistics = async () => {
+    try {
+      const response = await apiClient.get<Statistics>('/push-notifications/statistics');
+      setStatistics(response.data);
+    } catch (error) {
+      console.error('Error fetching statistics:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!title || !body) {
@@ -83,7 +109,7 @@ export default function PushNotificationsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Formulaire d'envoi */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Megaphone className="h-5 w-5" />
               Nouvelle notification
@@ -101,7 +127,7 @@ export default function PushNotificationsPage() {
                     className={cn(
                       'px-4 py-2 rounded-md text-sm font-medium transition-colors',
                       targetType === 'all'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-[#FF8C00] text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     )}
                   >
@@ -112,7 +138,7 @@ export default function PushNotificationsPage() {
                     className={cn(
                       'px-4 py-2 rounded-md text-sm font-medium transition-colors',
                       targetType === 'segment'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-[#FF8C00] text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     )}
                   >
@@ -123,7 +149,7 @@ export default function PushNotificationsPage() {
                     className={cn(
                       'px-4 py-2 rounded-md text-sm font-medium transition-colors',
                       targetType === 'user'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-[#FF8C00] text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     )}
                   >
@@ -134,7 +160,7 @@ export default function PushNotificationsPage() {
                     className={cn(
                       'px-4 py-2 rounded-md text-sm font-medium transition-colors',
                       targetType === 'users'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-[#FF8C00] text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     )}
                   >
@@ -152,7 +178,7 @@ export default function PushNotificationsPage() {
                   <select
                     value={clientType}
                     onChange={(e) => setClientType(e.target.value as 'PARTICULIER' | 'PROFESSIONNEL')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF8C00]"
                   >
                     <option value="PARTICULIER">Particulier</option>
                     <option value="PROFESSIONNEL">Professionnel</option>
@@ -170,7 +196,7 @@ export default function PushNotificationsPage() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Titre de la notification"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF8C00]"
                 />
               </div>
 
@@ -184,7 +210,7 @@ export default function PushNotificationsPage() {
                   onChange={(e) => setBody(e.target.value)}
                   placeholder="Contenu de la notification"
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF8C00]"
                 />
               </div>
 
@@ -192,7 +218,7 @@ export default function PushNotificationsPage() {
               <button
                 onClick={handleSend}
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#FF8C00] text-white rounded-md hover:bg-[#E67E00] transition-colors disabled:bg-gray-400"
               >
                 <Send className="h-4 w-4" />
                 {loading ? 'Envoi...' : 'Envoyer la notification'}
@@ -215,7 +241,7 @@ export default function PushNotificationsPage() {
 
         {/* Statistiques */}
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Users className="h-5 w-5" />
               Statistiques
@@ -223,24 +249,24 @@ export default function PushNotificationsPage() {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Total utilisateurs</span>
-                <span className="font-semibold">1,234</span>
+                <span className="font-semibold">{loadingStats ? '...' : statistics?.totalUsers || 0}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Tokens actifs</span>
-                <span className="font-semibold text-green-600">856</span>
+                <span className="font-semibold text-green-600">{loadingStats ? '...' : statistics?.totalTokens || 0}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Particuliers</span>
-                <span className="font-semibold">745</span>
+                <span className="font-semibold">{loadingStats ? '...' : statistics?.particulierUsers || 0}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Professionnels</span>
-                <span className="font-semibold">111</span>
+                <span className="font-semibold">{loadingStats ? '...' : statistics?.professionnelUsers || 0}</span>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Aide</h3>
             <div className="text-sm text-gray-600 space-y-2">
               <p>• <strong>Tous</strong> : Envoie à tous les utilisateurs avec un token actif</p>
