@@ -12,6 +12,16 @@ interface Statistics {
   professionnelTokens: number;
 }
 
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string | null;
+  clientType: 'PARTICULIER' | 'PROFESSIONNEL';
+  status: string;
+}
+
 export default function PushNotificationsPage() {
   const [targetType, setTargetType] = useState<'user' | 'users' | 'all' | 'segment'>('all');
   const [title, setTitle] = useState('');
@@ -22,6 +32,9 @@ export default function PushNotificationsPage() {
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
 
   useEffect(() => {
     fetchStatistics();
@@ -35,6 +48,37 @@ export default function PushNotificationsPage() {
       console.error('Error fetching statistics:', error);
     } finally {
       setLoadingStats(false);
+    }
+  };
+
+  useEffect(() => {
+    if (targetType === 'user' || targetType === 'users') {
+      fetchUsers();
+    }
+  }, [targetType]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (targetType === 'user' || targetType === 'users') {
+        fetchUsers();
+      }
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [userSearch]);
+
+  const fetchUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const params = new URLSearchParams({
+        search: userSearch,
+        pageSize: '50',
+      });
+      const response = await apiClient.get<{ data: User[] }>(`/users/list?${params}`);
+      setUsers(response.data.data);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
@@ -183,6 +227,72 @@ export default function PushNotificationsPage() {
                     <option value="PARTICULIER">Particulier</option>
                     <option value="PROFESSIONNEL">Professionnel</option>
                   </select>
+                </div>
+              )}
+
+              {/* Sélection d'utilisateurs */}
+              {(targetType === 'user' || targetType === 'users') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {targetType === 'user' ? 'Sélectionner un utilisateur' : 'Sélectionner des utilisateurs'}
+                  </label>
+                  <input
+                    type="text"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="Rechercher par nom, téléphone..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF8C00] mb-3"
+                  />
+                  <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md">
+                    {loadingUsers ? (
+                      <div className="p-4 text-center text-gray-500">Chargement...</div>
+                    ) : users.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">Aucun utilisateur trouvé</div>
+                    ) : (
+                      users.map((user) => (
+                        <div
+                          key={user.id}
+                          className="flex items-center p-3 border-b border-gray-100 last:border-0 hover:bg-gray-50"
+                        >
+                          <input
+                            type={targetType === 'user' ? 'radio' : 'checkbox'}
+                            name="user"
+                            checked={
+                              targetType === 'user'
+                                ? selectedUserIds[0] === user.id
+                                : selectedUserIds.includes(user.id)
+                            }
+                            onChange={() => {
+                              if (targetType === 'user') {
+                                setSelectedUserIds([user.id]);
+                              } else {
+                                setSelectedUserIds((prev) =>
+                                  prev.includes(user.id)
+                                    ? prev.filter((id) => id !== user.id)
+                                    : [...prev, user.id]
+                                );
+                              }
+                            }}
+                            className="h-4 w-4 text-[#FF8C00] focus:ring-[#FF8C00] border-gray-300"
+                          />
+                          <div className="ml-3">
+                            <p className="text-sm font-medium text-gray-900">
+                              {user.firstName} {user.lastName}
+                            </p>
+                            <p className="text-xs text-gray-500">{user.phone}</p>
+                          </div>
+                          <span className="ml-auto text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                            {user.clientType}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {targetType === 'users' && selectedUserIds.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      {selectedUserIds.length} utilisateur(s) sélectionné(s)
+                    </p>
+                  )}
                 </div>
               )}
 
